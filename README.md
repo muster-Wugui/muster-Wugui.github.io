@@ -12,6 +12,8 @@ cs180/proj0/index.html  Project 0 write-up
 cs180/proj0/img/        Web-sized photos for that write-up
 cs180/proj0/originals/  Full-res camera files (gitignored, local only)
 assets/css/style.css    Shared styles (light + dark)
+assets/js/theme.js      Light/dark toggle (remembers the choice)
+assets/js/site.js       Click-to-enlarge for photos
 assets/img/             Berkeley seal / shared images
 .nojekyll               Serve files as-is, no Jekyll build
 ```

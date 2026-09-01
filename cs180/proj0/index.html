@@ -6,6 +6,10 @@
 <title>CS 180 · Project 0</title>
 <meta name="description" content="Project 0 for CS 180: perspective, lens distortion, and a dolly zoom.">
 <link rel="icon" href="../../assets/img/berkeley-seal.svg">
+<script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="../../assets/css/style.css">
 </head>
 <body>
@@ -19,6 +23,7 @@
     <nav>
       <a href="/">Home</a>
       <a href="/cs180/" class="active">CS 180</a>
+      <button class="theme-toggle" type="button" aria-label="Switch color theme"></button>
     </nav>
   </div>
 </header>
@@ -26,8 +31,8 @@
 <main>
   <div class="wrap">
 
-    <div class="hero">
-      <p class="eyebrow">CS 180 · Project 0</p>
+    <div class="hero compact">
+      <p class="eyebrow">CS 180 <span class="dot">·</span> Project 0</p>
       <h1>Becoming Friends with Your Camera</h1>
       <p class="lead">
         Three small photo experiments about what changes when I move the camera
@@ -37,8 +42,10 @@
     </div>
 
     <section class="task">
-      <p class="kicker">Task 1</p>
-      <h2>Selfie: the wrong way and the right way</h2>
+      <div class="task-head">
+        <span class="task-num">1</span>
+        <h2><span class="sub">Task 1</span>Selfie: the wrong way and the right way</h2>
+      </div>
 
       <div class="prose">
         <p>
@@ -59,21 +66,23 @@
         </p>
       </div>
 
-      <div class="pair">
+      <div class="pair portrait">
         <figure>
-          <img src="img/portrait-close.jpg" alt="Close-up portrait taken from arm's length, nose looks enlarged">
+          <img class="shot" src="img/portrait-close.jpg" alt="Close-up portrait taken from arm's length, the nose looks enlarged">
           <figcaption><b>Up close, no zoom.</b> The nose and forehead push forward and the ears almost disappear.<span class="lens">24 mm</span></figcaption>
         </figure>
         <figure>
-          <img src="img/portrait-far.jpg" alt="Portrait taken from several feet away with the camera zoomed in">
+          <img class="shot" src="img/portrait-far.jpg" alt="Portrait taken from several feet away with the camera zoomed in">
           <figcaption><b>A few steps back, zoomed in.</b> Same size in the frame, but the proportions look normal.<span class="lens">66 mm</span></figcaption>
         </figure>
       </div>
     </section>
 
     <section class="task">
-      <p class="kicker">Task 2</p>
-      <h2>Architectural perspective compression</h2>
+      <div class="task-head">
+        <span class="task-num">2</span>
+        <h2><span class="sub">Task 2</span>Architectural perspective compression</h2>
+      </div>
 
       <div class="prose">
         <p>
@@ -92,19 +101,21 @@
 
       <div class="pair">
         <figure>
-          <img src="img/building-far.jpg" alt="The Gateway building photographed from far away with the camera zoomed in">
+          <img class="shot" src="img/building-far.jpg" alt="The Gateway building photographed from far away with the camera zoomed in">
           <figcaption><b>Far away, zoomed in.</b> The curve of the building flattens out into a wall.<span class="lens">48 mm</span></figcaption>
         </figure>
         <figure>
-          <img src="img/building-close.jpg" alt="The same building photographed from close up without zoom">
+          <img class="shot" src="img/building-close.jpg" alt="The same building photographed from close up without zoom">
           <figcaption><b>Close up, no zoom.</b> The paving rushes away and the courtyard opens up.<span class="lens">24 mm</span></figcaption>
         </figure>
       </div>
     </section>
 
     <section class="task">
-      <p class="kicker">Task 3</p>
-      <h2>The dolly zoom</h2>
+      <div class="task-head">
+        <span class="task-num">3</span>
+        <h2><span class="sub">Task 3</span>The dolly zoom</h2>
+      </div>
 
       <div class="prose">
         <p>
@@ -121,7 +132,7 @@
 
       <div class="pair single">
         <figure>
-          <img src="img/dolly-zoom.gif" alt="Animated dolly zoom: the skeleton stays the same size while the background shifts">
+          <img class="shot" src="img/dolly-zoom.gif" alt="Animated dolly zoom: the skeleton stays the same size while the background shifts">
           <figcaption><b>11 frames, looped.</b> Walking backwards while zooming in.</figcaption>
         </figure>
       </div>
@@ -139,5 +150,7 @@
   </div>
 </footer>
 
+<script src="../../assets/js/site.js"></script>
+<script src="../../assets/js/theme.js"></script>
 </body>
 </html>

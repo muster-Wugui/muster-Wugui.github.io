@@ -6,6 +6,10 @@
 <title>Coursework</title>
 <meta name="description" content="A place to post the assignments and projects I do for my classes at UC Berkeley.">
 <link rel="icon" href="assets/img/berkeley-seal.svg">
+<script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>
@@ -19,6 +23,7 @@
     <nav>
       <a href="/" class="active">Home</a>
       <a href="/cs180/">CS 180</a>
+      <button class="theme-toggle" type="button" aria-label="Switch color theme"></button>
     </nav>
   </div>
 </header>
@@ -28,32 +33,33 @@
 
     <div class="hero">
       <img class="seal" src="assets/img/berkeley-seal.svg" alt="UC Berkeley seal">
-      <p class="eyebrow">UC Berkeley</p>
-      <h1>My Coursework</h1>
+      <p class="eyebrow">University of California, Berkeley</p>
+      <h1>My coursework, posted as I go.</h1>
       <p class="lead">
-        Some of my classes ask us to post our assignments on a webpage, so this is where
-        I put them. Each course below has its own page with the projects I've finished.
+        Some of my classes ask us to put our assignments on a webpage, so this is where
+        I keep them. Each course below has its own page with the projects I've finished.
       </p>
       <div class="rule"></div>
     </div>
 
     <section>
-      <h2>Courses</h2>
-      <p class="section-note">One page per class.</p>
-      <div class="cards">
+      <div class="section-head">
+        <h2>Courses</h2>
+        <p class="section-note">One page per class.</p>
+      </div>
 
+      <div class="cards">
         <a class="card" href="/cs180/">
-          <span class="code">CS 180</span>
+          <span class="code">CS 180 · Fall 2026</span>
           <h3>Computer Vision &amp; Computational Photography</h3>
-          <p>Image processing and photo projects, in Python.</p>
+          <p>Image processing and photo projects, written up in Python.</p>
         </a>
 
-        <div class="card disabled">
+        <div class="card empty">
           <span class="code">Later</span>
           <h3>More courses</h3>
           <p>I'll add them here as I take them.</p>
         </div>
-
       </div>
     </section>
 
@@ -63,8 +69,10 @@
 <footer>
   <div class="wrap">
     <span>UC Berkeley coursework</span>
+    <span class="spacer"><a href="/cs180/">CS 180</a></span>
   </div>
 </footer>
 
+<script src="assets/js/theme.js"></script>
 </body>
 </html>

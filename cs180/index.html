@@ -6,6 +6,10 @@
 <title>CS 180</title>
 <meta name="description" content="My project write-ups for CS 180, Computer Vision and Computational Photography.">
 <link rel="icon" href="../assets/img/berkeley-seal.svg">
+<script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="../assets/css/style.css">
 </head>
 <body>
@@ -19,6 +23,7 @@
     <nav>
       <a href="/">Home</a>
       <a href="/cs180/" class="active">CS 180</a>
+      <button class="theme-toggle" type="button" aria-label="Switch color theme"></button>
     </nav>
   </div>
 </header>
@@ -28,7 +33,7 @@
 
     <div class="hero">
       <img class="seal" src="../assets/img/berkeley-seal.svg" alt="UC Berkeley seal">
-      <p class="eyebrow">UC Berkeley · Fall 2026</p>
+      <p class="eyebrow">UC Berkeley <span class="dot">·</span> Fall 2026</p>
       <h1>CS 180: Computer Vision &amp; Computational Photography</h1>
       <p class="lead">
         This page is for my CS 180 work. Every project I finish gets a write-up here
@@ -38,8 +43,10 @@
     </div>
 
     <section>
-      <h2>The class</h2>
-      <p class="section-note" style="max-width:62ch">
+      <div class="section-head">
+        <h2>The class</h2>
+      </div>
+      <p class="section-note">
         CS 180 is about doing things with images — filtering them, warping them, stitching
         them together, and generating new ones. It mixes classic algorithms with deep
         learning, and most of the work is projects done in Python.
@@ -57,56 +64,75 @@
     </section>
 
     <section>
-      <h2>Projects</h2>
-      <p class="section-note">Write-ups show up here as I finish each one.</p>
+      <div class="section-head">
+        <h2>Projects</h2>
+        <p class="section-note">Write-ups show up here as I finish each one.</p>
+      </div>
+
       <ul class="projects">
         <li>
           <a href="/cs180/proj0/">
-            <span class="num">Proj 0</span>
-            <span class="title">Becoming Friends with Your Camera</span>
+            <span class="thumb"><img src="proj0/img/thumb.gif" alt=""></span>
+            <span class="meta">
+              <span class="num">Project 0</span>
+              <span class="title">Becoming Friends with Your Camera</span>
+            </span>
             <span class="badge live">Posted</span>
           </a>
         </li>
         <li>
           <div class="row">
-            <span class="num">Proj 1</span>
-            <span class="title">Colorizing the Prokudin-Gorskii Photo Collection</span>
+            <span class="thumb empty">1</span>
+            <span class="meta">
+              <span class="num">Project 1</span>
+              <span class="title">Colorizing the Prokudin-Gorskii Photo Collection</span>
+            </span>
             <span class="badge">Coming soon</span>
           </div>
         </li>
         <li>
           <div class="row">
-            <span class="num">Proj 2</span>
-            <span class="title">Fun with Filters and Frequencies</span>
+            <span class="thumb empty">2</span>
+            <span class="meta">
+              <span class="num">Project 2</span>
+              <span class="title">Fun with Filters and Frequencies</span>
+            </span>
             <span class="badge">Coming soon</span>
           </div>
         </li>
         <li>
           <div class="row">
-            <span class="num">Proj 3</span>
-            <span class="title">(Auto)stitching and Photo Mosaics</span>
+            <span class="thumb empty">3</span>
+            <span class="meta">
+              <span class="num">Project 3</span>
+              <span class="title">(Auto)stitching and Photo Mosaics</span>
+            </span>
             <span class="badge">Coming soon</span>
           </div>
         </li>
         <li>
           <div class="row">
-            <span class="num">Proj 4</span>
-            <span class="title">Neural Radiance Fields</span>
+            <span class="thumb empty">4</span>
+            <span class="meta">
+              <span class="num">Project 4</span>
+              <span class="title">Neural Radiance Fields</span>
+            </span>
             <span class="badge">Coming soon</span>
           </div>
         </li>
         <li>
           <div class="row">
-            <span class="num">Proj 5</span>
-            <span class="title">Fun with Diffusion Models</span>
+            <span class="thumb empty">5</span>
+            <span class="meta">
+              <span class="num">Project 5</span>
+              <span class="title">Fun with Diffusion Models</span>
+            </span>
             <span class="badge">Coming soon</span>
           </div>
         </li>
       </ul>
-    </section>
 
-    <section>
-      <p class="section-note">
+      <p class="section-note" style="margin-top:34px">
         This is my own work for the class — please don't copy it.
       </p>
     </section>
@@ -117,9 +143,10 @@
 <footer>
   <div class="wrap">
     <span>UC Berkeley coursework</span>
-    <span class="spacer"><a href="/">← All courses</a></span>
+    <span class="spacer"><a href="/">All courses</a></span>
   </div>
 </footer>
 
+<script src="../assets/js/theme.js"></script>
 </body>
 </html>
