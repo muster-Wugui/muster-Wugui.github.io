@@ -1,6 +1,6 @@
 # muster-Wugui.github.io
 
-Personal coursework site, served by GitHub Pages at
+Coursework site, served by GitHub Pages at
 <https://muster-Wugui.github.io>.
 
 ## Layout
@@ -19,7 +19,7 @@ assets/img/           Berkeley seal / shared images
    the stylesheet path becomes `../../assets/css/style.css`).
 2. Put its images in `cs180/proj1/img/`.
 3. In `cs180/index.html`, swap that project's `<div class="row">` for a link and
-   mark it live:
+   mark it as posted:
 
    ```html
    <a href="/cs180/proj1/">
