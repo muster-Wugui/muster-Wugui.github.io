@@ -337,3 +337,75 @@ footer .spacer { margin-left: auto; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* ---------- print / save-as-PDF ---------- */
+@media print {
+  /* always print the light palette, whatever the screen theme is */
+  :root,
+  :root[data-theme="dark"],
+  :root:not([data-theme="light"]) {
+    --bg: #ffffff;
+    --bg-alt: #f4f4f4;
+    --line: #cfcfcf;
+    --ink: #000000;
+    --ink-soft: #444444;
+    --accent: #003262;
+    --shadow: none;
+    color-scheme: light;
+  }
+
+  @page { margin: 15mm; }
+
+  html, body { background: #fff !important; color: #000; font-size: 11pt; }
+
+  /* soft shadows print as solid grey blocks in Chrome — drop them all */
+  *, *::before, *::after {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    backdrop-filter: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+
+  /* keep the gold accents instead of letting them wash out */
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* screen-only furniture */
+  .topbar, footer, .backlink, .lightbox, .theme-toggle, .hint { display: none !important; }
+
+  .wrap { max-width: 100%; padding: 0; }
+  main { padding-top: 0; }
+  .hero, .hero.compact { padding: 0 0 18px; }
+  .hero .seal { height: 54px; margin-bottom: 14px; }
+  h1 { font-size: 26pt; max-width: none; }
+  h2 { font-size: 15pt; }
+  .lead { font-size: 11.5pt; max-width: none; }
+
+  section, .task { padding: 14px 0; }
+  .task { border-top: 1px solid var(--line); break-inside: auto; }
+  .task-num { font-size: 24pt; }
+
+  /* a photo and its caption should never be split across pages */
+  figure { break-inside: avoid; page-break-inside: avoid; }
+  .pair { gap: 14px; margin-top: 18px; }
+  .shot {
+    border: 1px solid #d8d8d8;
+    background: #fff;
+    cursor: default;
+    max-height: 92vh;
+    object-fit: contain;
+  }
+  figcaption { font-size: 9pt; color: #333; }
+  .lens { border-color: #bbb; color: #333; }
+
+  /* printed links can't be clicked — show where they point */
+  .prose a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 8.5pt;
+    color: #555;
+    word-break: break-all;
+  }
+  a { color: #000; text-decoration: none; border-bottom: none !important; }
+
+  h1, h2, h3 { break-after: avoid; page-break-after: avoid; }
+}
