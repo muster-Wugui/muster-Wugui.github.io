@@ -6,18 +6,29 @@ Coursework site, served by GitHub Pages at
 ## Layout
 
 ```
-index.html            Homepage — intro + course list
-cs180/index.html      CS 180 landing page + project index
-assets/css/style.css  Shared styles (light + dark)
-assets/img/           Berkeley seal / shared images
-.nojekyll             Serve files as-is, no Jekyll build
+index.html              Homepage — intro + course list
+cs180/index.html        CS 180 landing page + project index
+cs180/proj0/index.html  Project 0 write-up
+cs180/proj0/img/        Web-sized photos for that write-up
+cs180/proj0/originals/  Full-res camera files (gitignored, local only)
+assets/css/style.css    Shared styles (light + dark)
+assets/img/             Berkeley seal / shared images
+.nojekyll               Serve files as-is, no Jekyll build
 ```
 
 ## Adding a project write-up
 
-1. Create `cs180/proj1/index.html` (copy the structure of `cs180/index.html`;
-   the stylesheet path becomes `../../assets/css/style.css`).
-2. Put its images in `cs180/proj1/img/`.
+1. Copy `cs180/proj0/` to `cs180/proj1/` and rewrite the text.
+2. Drop the full-res photos in `cs180/proj1/originals/`, then shrink them into
+   `cs180/proj1/img/` (long side ~1800px, EXIF stripped):
+
+   ```python
+   from PIL import Image, ImageOps
+   im = ImageOps.exif_transpose(Image.open("originals/foo.JPG")).convert("RGB")
+   im.thumbnail((1800, 1800), Image.LANCZOS)
+   im.save("img/foo.jpg", quality=82, optimize=True, progressive=True)
+   ```
+
 3. In `cs180/index.html`, swap that project's `<div class="row">` for a link and
    mark it as posted:
 
