@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CS 180 · Project 0</title>
+<meta name="description" content="Project 0 for CS 180: perspective, lens distortion, and a dolly zoom.">
+<link rel="icon" href="../../assets/img/berkeley-seal.svg">
+<link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="mark" href="/">
+      <img src="../../assets/img/berkeley-seal.svg" alt="UC Berkeley seal">
+      <span>Coursework</span>
+    </a>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/cs180/" class="active">CS 180</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+
+    <div class="hero">
+      <p class="eyebrow">CS 180 · Project 0</p>
+      <h1>Becoming Friends with Your Camera</h1>
+      <p class="lead">
+        Three small photo experiments about what changes when I move the camera
+        instead of the zoom: face distortion, flattened buildings, and a dolly zoom.
+      </p>
+      <div class="rule"></div>
+    </div>
+
+    <section class="task">
+      <p class="kicker">Task 1</p>
+      <h2>Selfie: the wrong way and the right way</h2>
+
+      <div class="prose">
+        <p>
+          I think the second picture looks better because I'm standing farther away.
+          When the camera is really close to someone's face, the parts closest to the
+          lens, like the nose, look bigger compared to the ears and the rest of the
+          face. This causes that weird distortion, which looks funny.
+        </p>
+        <p>
+          When I step back, the distances from the camera to different parts of the
+          face become more similar, so the face looks more natural and proportional.
+          Zooming in just makes the face fill the frame again, and the increased
+          distance fixes the distortion.
+        </p>
+        <p>
+          (Thanks to the PhD candidate <a href="https://jeffwli.github.io">Jeff</a>
+          voluntarily to be the model for me, so I don't have to take selfies.)
+        </p>
+      </div>
+
+      <div class="pair">
+        <figure>
+          <img src="img/portrait-close.jpg" alt="Close-up portrait taken from arm's length, nose looks enlarged">
+          <figcaption><b>Up close, no zoom.</b> The nose and forehead push forward and the ears almost disappear.<span class="lens">24 mm</span></figcaption>
+        </figure>
+        <figure>
+          <img src="img/portrait-far.jpg" alt="Portrait taken from several feet away with the camera zoomed in">
+          <figcaption><b>A few steps back, zoomed in.</b> Same size in the frame, but the proportions look normal.<span class="lens">66 mm</span></figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="task">
+      <p class="kicker">Task 2</p>
+      <h2>Architectural perspective compression</h2>
+
+      <div class="prose">
+        <p>
+          I think the first picture looks more flat because I'm standing farther away
+          from the building and zooming in. From that distance, the front and back
+          parts of the scene don't look as far apart, so everything seems more
+          compressed.
+        </p>
+        <p>
+          When I walk closer and take the picture without zoom, the differences in
+          distance are easier to see. The parts closer to me look bigger, while the
+          parts farther away look smaller, which makes the scene feel like it has
+          more depth.
+        </p>
+      </div>
+
+      <div class="pair">
+        <figure>
+          <img src="img/building-far.jpg" alt="The Gateway building photographed from far away with the camera zoomed in">
+          <figcaption><b>Far away, zoomed in.</b> The curve of the building flattens out into a wall.<span class="lens">48 mm</span></figcaption>
+        </figure>
+        <figure>
+          <img src="img/building-close.jpg" alt="The same building photographed from close up without zoom">
+          <figcaption><b>Close up, no zoom.</b> The paving rushes away and the courtyard opens up.<span class="lens">24 mm</span></figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="task">
+      <p class="kicker">Task 3</p>
+      <h2>The dolly zoom</h2>
+
+      <div class="prose">
+        <p>
+          For this one I used a small 3D-printed skeleton sitting on my desk. I took
+          11 photos, and between each one I stepped back a little and zoomed in a
+          little, trying to keep the skeleton about the same size in the frame.
+        </p>
+        <p>
+          Since the skeleton stays the same size but the perspective keeps changing,
+          the background is what moves: the monitor and mouse behind it grow and slide
+          around while the skeleton barely changes at all.
+        </p>
+      </div>
+
+      <div class="pair single">
+        <figure>
+          <img src="img/dolly-zoom.gif" alt="Animated dolly zoom: the skeleton stays the same size while the background shifts">
+          <figcaption><b>11 frames, looped.</b> Walking backwards while zooming in.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <a class="backlink" href="/cs180/">← All CS 180 projects</a>
+
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>UC Berkeley coursework</span>
+    <span class="spacer"><a href="/cs180/">CS 180</a></span>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,5 @@
+.DS_Store
+
+# Full-resolution camera files: kept locally, not published
+# (the web-sized copies in each project's img/ folder are what the site uses)
+originals/
