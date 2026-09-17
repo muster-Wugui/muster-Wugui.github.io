@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CS 180 · Project 1</title>
+<meta name="description" content="Project 1 for CS 180: colorizing the Prokudin-Gorskii glass plate negatives by aligning their red, green, and blue exposures.">
+<link rel="icon" href="../../assets/img/berkeley-seal.svg">
+<script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="../../assets/css/style.css">
+<style>
+  /* page-scoped: the shared stylesheet has no table or gallery rules */
+  .task .prose h3 {
+    font-family: Inter, sans-serif; font-size: .82rem; font-weight: 700;
+    letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft);
+    line-height: 1.5;
+    margin: 42px 0 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .offsets { margin: 36px 0 0 80px; overflow-x: auto; }
+  .offsets table { border-collapse: collapse; width: 100%; max-width: 640px; font-size: .9rem; }
+  .offsets caption {
+    caption-side: top; text-align: left; font-size: 11px; font-weight: 600;
+    letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft);
+    padding-bottom: 12px;
+  }
+  .offsets th, .offsets td { padding: 9px 16px 9px 0; border-bottom: 1px solid var(--line); }
+  .offsets th {
+    text-align: left; font-size: 11px; font-weight: 600; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--ink-soft); border-bottom-color: var(--ink-soft);
+  }
+  .offsets td:first-child { color: var(--ink); }
+  .offsets td + td { font-variant-numeric: tabular-nums; color: var(--ink-soft); white-space: nowrap; }
+  .offsets tr:last-child td { border-bottom: none; }
+
+  .gallery { display: grid; gap: 30px 24px; grid-template-columns: repeat(3, 1fr); margin: 40px 0 0; }
+  .gallery figure { text-align: center; }
+  .gallery figcaption { max-width: none; }
+
+  @media (max-width: 900px) { .gallery { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 720px) {
+    .offsets { margin-left: 0; }
+    .gallery { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="mark" href="/">
+      <img src="../../assets/img/berkeley-seal.svg" alt="UC Berkeley seal">
+      <span>Coursework</span>
+    </a>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/cs180/" class="active">CS 180</a>
+      <button class="theme-toggle" type="button" aria-label="Switch color theme"></button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+
+    <div class="hero compact">
+      <p class="eyebrow">CS 180 <span class="dot">·</span> Project 1</p>
+      <h1>Colorizing the Prokudin-Gorskii Photo Collection</h1>
+      <p class="lead">
+        Around 1907, Sergei Prokudin-Gorskii traveled across the Russian Empire photographing
+        scenes through three different color filters: red, green, and blue. Each scene was
+        recorded three times on the same glass plate, with the goal of eventually reconstructing
+        a color photograph.
+      </p>
+      <div class="rule"></div>
+    </div>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">1</span>
+        <h2><span class="sub">Section 1</span>Understanding the glass plates</h2>
+      </div>
+
+      <div class="prose">
+        <p>
+          In this project, I take these digitized glass plates, separate the three exposures,
+          align them, and combine them into a single color image. I think the interesting part
+          of the project is that the basic idea is very simple, but making it work reliably on
+          large images requires a few important choices about alignment, image pyramids,
+          borders, and image features.
+        </p>
+        <p>
+          Each scanned glass plate is one tall grayscale image containing three exposures
+          stacked vertically. I first divide the image height into three equal sections to
+          recover the individual color channels.
+        </p>
+        <p>
+          The order from top to bottom is <b>blue, green, red</b>, rather than RGB. This is an
+          easy detail to get wrong. If I combine the channels in the wrong order, the resulting
+          colors immediately look unnatural.
+        </p>
+        <p>
+          The three exposures were taken sequentially through different filters, so they are
+          slightly shifted relative to one another. My goal is therefore to determine how much
+          I need to move the green and red channels so that they align with the blue channel.
+        </p>
+        <p>
+          I keep the blue channel fixed and search for an x and y translation for the other two
+          channels. Following the assumption in the project, I only consider translation and do
+          not try to correct rotation or scaling.
+        </p>
+      </div>
+
+      <div class="pair single">
+        <figure>
+          <img class="shot" src="img/cathedral-unaligned.jpg" alt="The cathedral plate with its three channels stacked without alignment, showing red and cyan ghosting">
+          <figcaption><b>Unaligned color channels.</b> The three channels stacked directly without alignment. The red and cyan ghosting comes from the displacement between the exposures.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">2</span>
+        <h2><span class="sub">Section 2</span>Single-scale alignment</h2>
+      </div>
+
+      <div class="prose">
+        <p>
+          For the smaller JPEG images, I started with a straightforward exhaustive search.
+        </p>
+        <p>
+          For each channel, I try every integer displacement from &minus;15 to +15 in both the
+          x and y directions. This gives 961 possible shifts. For each candidate, I shift the
+          channel using <code>np.roll</code>, compare it against the blue channel, and keep the
+          displacement with the best score.
+        </p>
+        <p>
+          For my similarity metric, I use the <b>L2 norm</b>. I subtract the two images and sum
+          the squared difference between their pixel values. A perfect match would have a score
+          of zero, while larger differences produce larger scores.
+        </p>
+        <p>
+          I leave out the square root in the standard L2 formula because it does not affect
+          which displacement has the smallest score. It only adds an unnecessary computation.
+        </p>
+
+        <h3>Ignoring the borders</h3>
+        <p>
+          One of the most important choices I made was excluding the borders when computing the
+          alignment score.
+        </p>
+        <p>
+          The scanned plates contain strong black and white borders. If I compare the entire
+          image, those borders can dominate the L2 score. The algorithm can then find a
+          displacement that aligns the frame well even though the actual photograph is
+          misaligned.
+        </p>
+        <p>
+          To avoid this, I ignore 20 percent of the image from each side and calculate the
+          score only using the central region. This also prevents the wrapped pixels created by
+          <code>np.roll</code> from affecting the comparison.
+        </p>
+        <p>
+          I think this made a much larger difference than changing the similarity metric itself.
+        </p>
+      </div>
+
+      <div class="offsets">
+        <table>
+          <caption>Single-scale results</caption>
+          <thead>
+            <tr><th>Image</th><th>Green offset (x, y)</th><th>Red offset (x, y)</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>cathedral.jpg</td><td>(2, 5)</td><td>(3, 12)</td></tr>
+            <tr><td>monastery.jpg</td><td>(2, &minus;3)</td><td>(2, 3)</td></tr>
+            <tr><td>tobolsk.jpg</td><td>(3, 3)</td><td>(3, 7)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="gallery">
+        <figure>
+          <img class="shot" src="img/cathedral.jpg" alt="Aligned color reconstruction of the cathedral plate">
+          <figcaption><b>cathedral.jpg</b><span class="lens">G 2, 5</span><span class="lens">R 3, 12</span></figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/monastery.jpg" alt="Aligned color reconstruction of the monastery plate">
+          <figcaption><b>monastery.jpg</b><span class="lens">G 2, &minus;3</span><span class="lens">R 2, 3</span></figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/tobolsk.jpg" alt="Aligned color reconstruction of the tobolsk plate">
+          <figcaption><b>tobolsk.jpg</b><span class="lens">G 3, 3</span><span class="lens">R 3, 7</span></figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">3</span>
+        <h2><span class="sub">Section 3</span>Image pyramid alignment</h2>
+      </div>
+
+      <div class="prose">
+        <p>
+          The exhaustive search works well for the small JPEG images, but it becomes impractical
+          for the full resolution TIFF files.
+        </p>
+        <p>
+          Each channel is around 3200 &times; 3600 pixels, and some of the actual displacements
+          are close to 180 pixels. A search window of only 15 pixels is therefore not large
+          enough.
+        </p>
+        <p>
+          I could simply increase the search range to around 180 pixels, but that would require
+          evaluating roughly 130,000 candidate translations. Each candidate would also require
+          comparing millions of pixels, so this quickly becomes too expensive.
+        </p>
+        <p>
+          Instead, I use an <b>image pyramid</b>. The basic idea is to solve the alignment
+          problem at a small resolution first, then gradually refine the result as I return to
+          the original resolution.
+        </p>
+        <p>
+          I repeatedly reduce both images by a factor of two until the shorter dimension is
+          below 300 pixels. At this smallest level, I run the original search over a range of
+          15 pixels.
+        </p>
+        <p>
+          When I move back to the next resolution, each image dimension doubles, so I also
+          double the displacement from the previous level. I then search only 2 pixels around
+          that predicted location to correct any small error introduced by downsampling.
+        </p>
+        <p>
+          Instead of searching 961 possibilities at every resolution, the finer levels only need
+          to test 25 possibilities.
+        </p>
+        <p>
+          I implemented this recursively, which I think makes the algorithm especially clean.
+          Each call solves the smaller version of the same alignment problem before refining
+          that estimate at the current resolution.
+        </p>
+
+        <h3>Why the pyramid works</h3>
+        <p>
+          Downsampling reduces the displacement at the same time that it reduces the image size.
+        </p>
+        <p>
+          For example, after four reductions, a channel that originally has a width around 3200
+          pixels becomes roughly 200 pixels wide. A displacement of 180 pixels also shrinks to
+          around 11 pixels, which now fits comfortably inside my search range of 15 pixels.
+        </p>
+        <p>
+          Using the pyramid, a full resolution plate takes approximately one to two seconds to
+          align rather than requiring an exhaustive search over the full displacement range.
+        </p>
+
+        <h3>Downsampling correctly</h3>
+        <p>
+          I did not reduce the image by simply selecting every second pixel.
+        </p>
+        <p>
+          If I discard pixels directly, high frequency details can alias into incorrect lower
+          frequency patterns. Since the three color channels contain different intensity values,
+          they can also alias differently. This is especially problematic because an incorrect
+          estimate at the smallest pyramid level will be propagated upward through every later
+          refinement.
+        </p>
+        <p>
+          Instead, I average each 2 &times; 2 block of pixels before reducing the resolution.
+          This smooths the image before removing information and gives me a more stable coarse
+          representation.
+        </p>
+        <p>
+          I compared this approach with an antialiased resize from scikit-image. My 2 &times; 2
+          averaging method differs from the reference by about 0.0127 on average, while simply
+          selecting every second pixel differs by 0.0341. That means the direct subsampling
+          error is about 2.7 times larger.
+        </p>
+
+        <h3>Choosing the pyramid parameters</h3>
+        <p>
+          I use 300 pixels as the stopping threshold for the smallest level of the pyramid.
+        </p>
+        <p>
+          I think there is a useful tradeoff here. The smallest image needs to be small enough
+          that the original displacement falls inside the 15 pixel search range, but it also
+          needs to remain large enough to preserve meaningful visual structure. If I reduce the
+          image too far, the coarse image becomes too blurry and the first alignment estimate
+          becomes unreliable.
+        </p>
+        <p>
+          For the refinement levels, I search 2 pixels around the doubled estimate. The
+          refinement window needs to allow for small errors from downsampling and rounding, but
+          keeping it small is important because the finest resolution contains much more data.
+        </p>
+        <p>
+          At full resolution, each candidate shift operates on an array of approximately 46 MB,
+          so even a small reduction in the number of candidates makes a noticeable difference.
+        </p>
+        <p>
+          As a sanity check, I also ran the pyramid algorithm on the three small JPEG images. It
+          returned exactly the same offsets as my original exhaustive search, which gave me
+          confidence that the speedup was not changing the final alignment.
+        </p>
+
+        <h3>Baseline results with the L2 metric</h3>
+        <p>
+          Using the image pyramid described above, I first ran all provided images using the
+          required L2 metric on raw pixel intensities. The method successfully aligns most
+          images, but performs poorly on Emir because corresponding structures can have very
+          different intensities across color channels. The results below use this baseline L2
+          method. I then explore edge-based alignment as an additional improvement in the
+          following section.
+        </p>
+      </div>
+
+      <div class="offsets">
+        <table>
+          <caption>Pyramid alignment, L2 on raw pixel values</caption>
+          <thead>
+            <tr><th>Image</th><th>Green offset (x, y)</th><th>Red offset (x, y)</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>cathedral.jpg</td><td>(2, 5)</td><td>(3, 12)</td></tr>
+            <tr><td>church.tif</td><td>(4, 25)</td><td>(&minus;4, 58)</td></tr>
+            <tr><td>emir.tif</td><td>(24, 49)</td><td>(43, 61)</td></tr>
+            <tr><td>harvesters.tif</td><td>(17, 59)</td><td>(14, 123)</td></tr>
+            <tr><td>icon.tif</td><td>(17, 40)</td><td>(23, 89)</td></tr>
+            <tr><td>ilemselga.tif</td><td>(7, 40)</td><td>(11, 131)</td></tr>
+            <tr><td>melons.tif</td><td>(10, 81)</td><td>(14, 178)</td></tr>
+            <tr><td>monastery.jpg</td><td>(2, &minus;3)</td><td>(2, 3)</td></tr>
+            <tr><td>religous_painting.tif</td><td>(3, 29)</td><td>(7, 69)</td></tr>
+            <tr><td>self_portrait.tif</td><td>(29, 78)</td><td>(37, 176)</td></tr>
+            <tr><td>siren.tif</td><td>(&minus;5, 50)</td><td>(&minus;24, 97)</td></tr>
+            <tr><td>three_generations.tif</td><td>(14, 52)</td><td>(12, 111)</td></tr>
+            <tr><td>tobolsk.jpg</td><td>(3, 3)</td><td>(3, 7)</td></tr>
+            <tr><td>wharf.tif</td><td>(&minus;7, 15)</td><td>(&minus;16, 82)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">4</span>
+        <h2><span class="sub">Section 4</span>The Emir, and why pixel intensity can fail</h2>
+      </div>
+
+      <div class="prose">
+        <p>
+          Most of the provided images align well using the standard L2 comparison on pixel
+          intensities. The major exception is <b>emir.tif</b>.
+        </p>
+        <p>
+          Using raw pixel intensity, the red channel was aligned to approximately (43, 61),
+          which produced obvious colored ghosting around the portrait.
+        </p>
+        <p>
+          At first, I thought the issue might simply be that the three channels had very
+          different average brightness values. However, their averages are approximately blue
+          0.529, green 0.489, red 0.588, so the global brightness difference is not especially
+          large.
+        </p>
+        <p>
+          I think the more important problem is local image appearance.
+        </p>
+        <p>
+          The Emir's robe covers a large part of the image and has very different intensities
+          between the color channels. The blue fabric appears bright through the blue filter but
+          much darker through the red filter.
+        </p>
+        <p>
+          L2 compares raw intensity directly. Because of this, a large region with opposite
+          intensity behavior can dominate the score and pull the algorithm toward a displacement
+          that makes similar brightness values overlap rather than one that actually aligns the
+          physical structures in the image.
+        </p>
+
+        <h3>Aligning with edges</h3>
+        <p>
+          To handle this case, I implemented an additional alignment method using <b>image
+          edges</b> instead of raw pixel brightness.
+        </p>
+        <p>
+          For every pixel, I calculate its intensity difference with the neighboring pixel to
+          the right and the neighboring pixel below it. I then combine those differences to
+          construct an edge strength image.
+        </p>
+        <p>
+          This changes what the alignment algorithm sees. Instead of asking whether two
+          locations have the same brightness, I ask whether visual boundaries occur in the same
+          locations.
+        </p>
+        <p>
+          I think this makes sense for the Emir because an edge can remain in the same physical
+          position even when the two sides of the edge have very different brightness values
+          across color channels.
+        </p>
+        <p>
+          With edge based alignment, the red displacement becomes (40, 107), and the portrait
+          becomes much sharper. The other images also remain correctly aligned, with some
+          offsets changing by only one or two pixels.
+        </p>
+      </div>
+
+      <div class="pair">
+        <figure>
+          <img class="shot" src="img/emir-before.jpg" alt="Detail of the Emir portrait aligned with raw pixel intensity, showing pink and cyan ghosting">
+          <figcaption><b>Before.</b> Alignment using raw pixel intensity. Pink and cyan ghosting is visible around the face and turban.<span class="lens">R 43, 61</span></figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/emir-after.jpg" alt="The same detail of the Emir portrait aligned with edge features, now sharp">
+          <figcaption><b>After.</b> Alignment using image edges. The same pyramid procedure now finds a much better displacement because the comparison focuses on image structure rather than absolute brightness.<span class="lens">R 40, 107</span></figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">5</span>
+        <h2><span class="sub">Section 5</span>Results</h2>
+      </div>
+
+      <div class="prose">
+        <p>
+          Below are the final displacement vectors for all 17 images. I use the same alignment
+          parameters across the dataset rather than tuning parameters separately for individual
+          photographs.
+        </p>
+      </div>
+
+      <div class="offsets">
+        <table>
+          <caption>Final offsets, all 17 images</caption>
+          <thead>
+            <tr><th>Image</th><th>Green offset (x, y)</th><th>Red offset (x, y)</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>cathedral.jpg</td><td>(2, 5)</td><td>(3, 12)</td></tr>
+            <tr><td>church.tif</td><td>(4, 25)</td><td>(&minus;4, 58)</td></tr>
+            <tr><td>emir.tif</td><td>(24, 49)</td><td>(40, 107)</td></tr>
+            <tr><td>harvesters.tif</td><td>(18, 60)</td><td>(14, 124)</td></tr>
+            <tr><td>icon.tif</td><td>(17, 41)</td><td>(23, 90)</td></tr>
+            <tr><td>ilemselga.tif</td><td>(7, 40)</td><td>(11, 131)</td></tr>
+            <tr><td>melons.tif</td><td>(10, 80)</td><td>(14, 177)</td></tr>
+            <tr><td>monastery.jpg</td><td>(2, &minus;3)</td><td>(2, 3)</td></tr>
+            <tr><td>religous_painting.tif</td><td>(1, 30)</td><td>(6, 70)</td></tr>
+            <tr><td>self_portrait.tif</td><td>(29, 78)</td><td>(37, 175)</td></tr>
+            <tr><td>siren.tif</td><td>(&minus;6, 49)</td><td>(&minus;24, 96)</td></tr>
+            <tr><td>three_generations.tif</td><td>(13, 53)</td><td>(9, 111)</td></tr>
+            <tr><td>tobolsk.jpg</td><td>(3, 3)</td><td>(3, 7)</td></tr>
+            <tr><td>wharf.tif</td><td>(&minus;6, 15)</td><td>(&minus;16, 82)</td></tr>
+            <tr><td>napoleon.tif</td><td>(5, 63)</td><td>(&minus;2, 132)</td></tr>
+            <tr><td>girvas.tif</td><td>(&minus;1, 13)</td><td>(&minus;2, 80)</td></tr>
+            <tr><td>mozhaisk.tif</td><td>(15, 41)</td><td>(25, 91)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="gallery">
+        <figure>
+          <img class="shot" src="img/church.jpg" alt="Aligned color reconstruction: church">
+          <figcaption><b>church.tif</b><span class="lens">G 4, 25</span><span class="lens">R &minus;4, 58</span></figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/emir.jpg" alt="Aligned color reconstruction: the Emir of Bukhara">
+          <figcaption><b>emir.tif</b><span class="lens">G 24, 49</span><span class="lens">R 40, 107</span></figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/harvesters.jpg" alt="Aligned color reconstruction: harvesters">
+          <figcaption><b>harvesters.tif</b><span class="lens">G 18, 60</span><span class="lens">R 14, 124</span></figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/icon.jpg" alt="Aligned color reconstruction: icon">
+          <figcaption><b>icon.tif</b><span class="lens">G 17, 41</span><span class="lens">R 23, 90</span></figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/ilemselga.jpg" alt="Aligned color reconstruction: Ilemselga">
+          <figcaption><b>ilemselga.tif</b><span class="lens">G 7, 40</span><span class="lens">R 11, 131</span></figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/melons.jpg" alt="Aligned color reconstruction: melons">
+          <figcaption><b>melons.tif</b><span class="lens">G 10, 80</span><span class="lens">R 14, 177</span></figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/religous-painting.jpg" alt="Aligned color reconstruction: religious painting">
+          <figcaption><b>religous_painting.tif</b><span class="lens">G 1, 30</span><span class="lens">R 6, 70</span></figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/self-portrait.jpg" alt="Aligned color reconstruction: self portrait">
+          <figcaption><b>self_portrait.tif</b><span class="lens">G 29, 78</span><span class="lens">R 37, 175</span></figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/siren.jpg" alt="Aligned color reconstruction: lilacs">
+          <figcaption><b>siren.tif</b><span class="lens">G &minus;6, 49</span><span class="lens">R &minus;24, 96</span></figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/three-generations.jpg" alt="Aligned color reconstruction: three generations">
+          <figcaption><b>three_generations.tif</b><span class="lens">G 13, 53</span><span class="lens">R 9, 111</span></figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/wharf.jpg" alt="Aligned color reconstruction: wharf">
+          <figcaption><b>wharf.tif</b><span class="lens">G &minus;6, 15</span><span class="lens">R &minus;16, 82</span></figcaption>
+        </figure>
+      </div>
+
+      <div class="prose">
+        <p>
+          Some of the resulting images still contain colored fringes near their outer
+          boundaries. These come from a combination of the original glass plate borders and the
+          wraparound produced when shifting the channels.
+        </p>
+        <p>
+          Automatic border detection and cropping is another possible extension, but I did not
+          implement it for this project. I therefore leave the borders visible so the images
+          show the direct output of my alignment algorithm.
+        </p>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">6</span>
+        <h2><span class="sub">Section 6</span>Three images I selected</h2>
+      </div>
+
+      <div class="prose">
+        <p>
+          I also tested my algorithm on three additional images from the Library of Congress
+          Prokudin-Gorskii collection.
+        </p>
+
+        <h3>Mozhaisk Nikolaevsky Cathedral, 1911</h3>
+        <p>
+          This image aligned very cleanly. The brickwork, tower, windows, and smaller
+          architectural details all line up well after reconstruction.
+        </p>
+        <p>
+          The result is a useful example of when the translation assumption works almost exactly
+          as expected.
+          Source: <a href="https://www.loc.gov/item/2018679963/">loc.gov/item/2018679963</a>
+        </p>
+      </div>
+
+      <div class="pair single">
+        <figure>
+          <img class="shot" src="img/mozhaisk.jpg" alt="Aligned color reconstruction of the Mozhaisk Nikolaevsky Cathedral">
+          <figcaption><b>Mozhaisk Nikolaevsky Cathedral, 1911.</b><span class="lens">G 15, 41</span><span class="lens">R 25, 91</span></figcaption>
+        </figure>
+      </div>
+
+      <div class="prose">
+        <h3>Vodopad Girvas, Suna River, 1915</h3>
+        <p>
+          I think this is the most interesting result among the three images I selected.
+        </p>
+        <p>
+          Most of the scene aligns extremely well. The rocks, trees, and wooden pole in the
+          river are all sharp. The waterfall, however, contains obvious bands of different
+          colors.
+        </p>
+        <p>
+          At first this can look like an alignment failure, but the surrounding stationary
+          objects show that the displacement is actually correct.
+        </p>
+        <p>
+          The problem is that the water physically moved between the red, green, and blue
+          exposures. Because each channel captured the water at a different moment, there is no
+          single translation that can make the three versions of the waterfall agree.
+        </p>
+        <p>
+          This is a direct example of where the assumption that the channels differ only by an x
+          and y translation stops being true. The alignment model works for the stationary parts
+          of the scene, but it cannot undo motion that occurred between exposures.
+          Source: <a href="https://www.loc.gov/item/2018679191/">loc.gov/item/2018679191</a>
+        </p>
+      </div>
+
+      <div class="pair">
+        <figure>
+          <img class="shot" src="img/girvas.jpg" alt="Aligned color reconstruction of the Girvas waterfall on the Suna River">
+          <figcaption><b>Vodopad Girvas, Suna River, 1915.</b><span class="lens">G &minus;1, 13</span><span class="lens">R &minus;2, 80</span></figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/girvas-water.jpg" alt="Close detail of the waterfall showing sharp rock and pole but multicolored water">
+          <figcaption><b>Water detail.</b> The rock face and wooden pole are sharp, while the water contains different colors. The alignment is correct, but the scene itself changed between exposures.</figcaption>
+        </figure>
+      </div>
+
+      <div class="prose">
+        <h3>Napoleon, Waiting for Peace, 1905</h3>
+        <p>
+          This photograph of a painting also aligns very well. Fine details such as the medals,
+          clothing, and gold decorations remain sharp.
+        </p>
+        <p>
+          There is also a diagonal scratch across the original glass plate. After reconstruction,
+          the scratch appears as separate red and cyan lines rather than one aligned line.
+        </p>
+        <p>
+          I think this happens for a similar reason as the waterfall, although the source of the
+          mismatch is different. The scratch belongs to the physical plate rather than the
+          photographed scene. Because each color exposure occupies a different section of the
+          plate, the scratch appears at a different relative position in each channel.
+        </p>
+        <p>
+          Aligning the actual scene therefore cannot also align the scratch.
+          Source: <a href="https://www.loc.gov/item/2018681265/">loc.gov/item/2018681265</a>
+        </p>
+      </div>
+
+      <div class="pair single">
+        <figure>
+          <img class="shot" src="img/napoleon.jpg" alt="Aligned color reconstruction of a photograph of a painting of Napoleon">
+          <figcaption><b>Napoleon, Waiting for Peace, 1905.</b><span class="lens">G 5, 63</span><span class="lens">R &minus;2, 132</span></figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">7</span>
+        <h2><span class="sub">Wrapping up</span>Conclusion</h2>
+      </div>
+
+      <div class="prose">
+        <p>
+          I started this project with a simple exhaustive search over x and y translations. That
+          approach works well for the small images, but scaling it to the full resolution scans
+          required a coarse to fine image pyramid.
+        </p>
+        <p>
+          The biggest lessons for me were that the details around the basic algorithm matter a
+          lot. Ignoring the borders prevented the score from being dominated by the plate frame,
+          proper averaging made the pyramid more reliable, and edge based features handled cases
+          where raw brightness was not a good representation of correspondence.
+        </p>
+        <p>
+          I also found the additional images interesting because they show the limits of the
+          alignment model itself. The waterfall and the scratch cannot be fixed by finding a
+          better translation. In both cases, the three channels contain genuinely different
+          information, so there is no single displacement that can make every part of the image
+          agree.
+        </p>
+      </div>
+    </section>
+
+    <a class="backlink" href="/cs180/">← All CS 180 projects</a>
+
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>UC Berkeley coursework</span>
+    <span class="spacer"><a href="/cs180/">CS 180</a></span>
+  </div>
+</footer>
+
+<script src="../../assets/js/site.js"></script>
+<script src="../../assets/js/theme.js"></script>
+</body>
+</html>

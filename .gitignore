@@ -3,3 +3,8 @@
 # Full-resolution camera files: kept locally, not published
 # (the web-sized copies in each project's img/ folder are what the site uses)
 originals/
+
+# Prokudin-Gorskii source plates: ~70 MB each, kept locally, not published
+cs180/proj1/CS180_fa2026_proj1_data/
+
+__pycache__/
