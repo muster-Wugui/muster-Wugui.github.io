@@ -8,3 +8,7 @@ originals/
 cs180/proj1/CS180_fa2026_proj1_data/
 
 __pycache__/
+
+*.py
+*.ipynb
+*_starter_code/

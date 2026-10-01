@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CS 180 · Project 2</title>
+<meta name="description" content="Project 2 for CS 180: convolution from scratch, edge detection, sharpening, hybrid images, and multiresolution blending with Gaussian and Laplacian stacks.">
+<link rel="icon" href="../../assets/img/berkeley-seal.svg">
+<script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="../../assets/css/style.css">
+<style>
+  .task .prose h3 {
+    font-family: Inter, sans-serif; font-size: .82rem; font-weight: 700;
+    letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft);
+    line-height: 1.5;
+    margin: 42px 0 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .task .prose ul, .task .prose ol { margin: 0 0 18px; padding-left: 22px; }
+  .task .prose li { margin-bottom: 8px; }
+  .offsets { margin: 36px 0 0 80px; overflow-x: auto; }
+  .offsets table { border-collapse: collapse; width: 100%; max-width: 640px; font-size: .9rem; }
+  .offsets caption {
+    caption-side: top; text-align: left; font-size: 11px; font-weight: 600;
+    letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft);
+    padding-bottom: 12px;
+  }
+  .offsets th, .offsets td { padding: 9px 16px 9px 0; border-bottom: 1px solid var(--line); }
+  .offsets th {
+    text-align: left; font-size: 11px; font-weight: 600; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--ink-soft); border-bottom-color: var(--ink-soft);
+  }
+  .offsets td:first-child { color: var(--ink); }
+  .offsets td + td { font-variant-numeric: tabular-nums; color: var(--ink-soft); white-space: nowrap; }
+  .offsets tr:last-child td { border-bottom: none; }
+
+  .gallery { display: grid; gap: 30px 24px; grid-template-columns: repeat(3, 1fr); margin: 40px 0 0; align-items: start; }
+  .gallery.two { grid-template-columns: repeat(2, 1fr); max-width: 760px; margin-left: auto; margin-right: auto; }
+  .gallery.four { grid-template-columns: repeat(4, 1fr); }
+  .gallery.five { grid-template-columns: repeat(5, 1fr); }
+  .gallery figure { text-align: center; }
+  .gallery figcaption { max-width: none; }
+  .pair.single.narrow { max-width: 560px; }
+  .pair.single.tiny { max-width: 320px; }
+  .filter .shot { image-rendering: pixelated; }
+
+  pre {
+    margin: 0 0 18px; padding: 16px 18px; overflow-x: auto;
+    background: var(--bg-alt); border: 1px solid var(--line); border-radius: var(--radius);
+    font-size: .8rem; line-height: 1.55;
+  }
+  pre code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .eq {
+    font-family: "Instrument Serif", serif; font-size: 1.35rem; text-align: center;
+    margin: 6px 0 22px !important;
+  }
+
+  .hybrid { text-align: center; margin: 44px auto 0; max-width: 560px; }
+  .view { display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 999px; margin-bottom: 18px; }
+  .view button {
+    font: 600 12px Inter, sans-serif; letter-spacing: .06em; color: var(--ink-soft);
+    background: none; border: 0; border-radius: 999px; padding: 7px 16px; cursor: pointer;
+  }
+  .view button.on { background: var(--ink); color: var(--bg); }
+  .stage { display: flex; align-items: center; justify-content: center; }
+  .stage .shot { width: 440px; max-width: 100%; transition: width .45s cubic-bezier(.2,.7,.3,1); }
+  .hybrid.far .stage .shot { width: 64px; }
+  .credits { font-size: .78rem; color: var(--ink-soft); max-width: var(--measure); margin: 0 0 28px; }
+
+  @media (max-width: 900px) {
+    .gallery, .gallery.four, .gallery.five { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 720px) {
+    .offsets { margin-left: 0; }
+    .gallery, .gallery.two, .gallery.four, .gallery.five { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="mark" href="/">
+      <img src="../../assets/img/berkeley-seal.svg" alt="UC Berkeley seal">
+      <span>Coursework</span>
+    </a>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/cs180/" class="active">CS 180</a>
+      <button class="theme-toggle" type="button" aria-label="Switch color theme"></button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+
+    <div class="hero compact">
+      <p class="eyebrow">CS 180 <span class="dot">·</span> Project 2</p>
+      <h1>Fun with Filters and Frequencies</h1>
+      <p class="lead">
+        For this project, I treated images as signals and explored what I could do with their
+        frequencies. I started by implementing convolution from scratch and using it to detect
+        edges. From there, I moved into sharpening photos, making hybrid images that look
+        different depending on the viewing distance, and blending images together without an
+        obvious seam. Every result on this page comes from the same script,
+        <code>proj2.py</code>, which runs one part at a time (<code>python3 proj2.py 1.1</code>,
+        <code>2.2</code>, and so on).
+      </p>
+      <div class="rule"></div>
+    </div>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">1</span>
+        <h2><span class="sub">Part 1.1</span>Convolutions from scratch</h2>
+      </div>
+
+      <div class="prose">
+        <p>
+          I implemented 2D convolution in two different ways using only NumPy. Both versions
+          start by flipping the kernel, which is what makes the operation convolution instead of
+          cross-correlation. Then I zero-pad the image so that the output stays the same size as
+          the input. My first version uses four loops: two for the output pixels and two for the
+          kernel. The second version only loops over the output pixels and handles the whole
+          kernel at once with <code>np.sum(window * kernel)</code>.
+        </p>
+<pre><code>def c4(a, k):
+    k = k[::-1, ::-1]
+    h, w = k.shape
+    p = np.pad(a, ((h // 2, (h - 1) // 2), (w // 2, (w - 1) // 2)))
+    o = np.zeros(a.shape)
+    for i in range(a.shape[0]):
+        for j in range(a.shape[1]):
+            for x in range(h):
+                for y in range(w):
+                    o[i, j] += p[i + x, j + y] * k[x, y]
+    return o</code></pre>
+<pre><code>def c2(a, k):
+    k = k[::-1, ::-1]
+    h, w = k.shape
+    p = np.pad(a, ((h // 2, (h - 1) // 2), (w // 2, (w - 1) // 2)))
+    o = np.zeros(a.shape)
+    for i in range(a.shape[0]):
+        for j in range(a.shape[1]):
+            o[i, j] = np.sum(p[i:i + h, j:j + w] * k)
+    return o</code></pre>
+        <p>
+          For the padding, I used <code>h // 2</code> above the image and
+          <code>(h &minus; 1) // 2</code> below it, with the same idea for the width. Odd-sized
+          kernels get equal padding on both sides. For an even-sized kernel such as
+          <code>[1, &minus;1]</code>, the padding shifts by one pixel so that my output lines up
+          exactly with <code>scipy.signal.convolve2d(mode='same')</code>.
+        </p>
+
+        <h3>Runtime and correctness</h3>
+        <p>
+          I tested each method with a 9&times;9 box filter on my 388&times;480 grayscale portrait.
+        </p>
+      </div>
+
+      <div class="offsets">
+        <table>
+          <caption>9&times;9 box filter, 388&times;480 image</caption>
+          <thead>
+            <tr><th>Method</th><th>Time</th><th>Largest difference from SciPy</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Four loops</td><td>3.0 s</td><td>2 &times; 10<sup>&minus;15</sup></td></tr>
+            <tr><td>Two loops</td><td>0.30 s</td><td>7 &times; 10<sup>&minus;16</sup></td></tr>
+            <tr><td><code>scipy.signal.convolve2d</code></td><td>0.012 s</td><td>&mdash;</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="prose" style="margin-top: 32px;">
+        <p>
+          Both of my versions match SciPy up to normal floating-point rounding. Replacing the two
+          inner loops with one NumPy operation made the code about 10 times faster. SciPy was
+          still around 25 times faster than that because its full loop runs in compiled code.
+        </p>
+
+        <h3>What happens at the boundaries</h3>
+        <p>
+          Zero padding treats anything outside the image as black. Near the border, the box
+          filter averages those black pixels into the image, which creates a thin dark frame
+          around the result. You can see it in both box-filtered images below. SciPy has the
+          same behavior by default with <code>boundary='fill'</code>. Starting in Part 1.2, I use
+          <code>boundary='symm'</code> instead. It mirrors the image at the edges, so I don't get
+          a dark frame or any fake border edges.
+        </p>
+      </div>
+
+      <div class="gallery">
+        <figure>
+          <img class="shot" src="img/p11_gray.jpg" alt="Grayscale self-portrait">
+          <figcaption>My portrait in grayscale.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p11_box.jpg" alt="Portrait blurred with a 9 by 9 box filter using my two-loop convolution">
+          <figcaption>A 9&times;9 box filter using my two-loop convolution. The dark frame comes from zero padding.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p11_box_scipy.jpg" alt="Portrait blurred with a 9 by 9 box filter using SciPy">
+          <figcaption>The same 9&times;9 box filter using SciPy. It matches my result.</figcaption>
+        </figure>
+      </div>
+      <div class="gallery two">
+        <figure>
+          <img class="shot" src="img/p11_dx.jpg" alt="Portrait convolved with Dx">
+          <figcaption>Convolution with D<sub>x</sub> = [1, &minus;1]. It responds to vertical edges, including the wall panels, the lab equipment, and the sides of my glasses.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p11_dy.jpg" alt="Portrait convolved with Dy">
+          <figcaption>Convolution with D<sub>y</sub> = [1, &minus;1]<sup>T</sup>. It responds to horizontal edges, including the top of my glasses and my shoulders.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">2</span>
+        <h2><span class="sub">Part 1.2</span>Finite difference operator</h2>
+      </div>
+
+      <div class="prose">
+        <p>
+          I convolved the cameraman image with D<sub>x</sub> and D<sub>y</sub> to find its
+          partial derivatives, then combined them to get the gradient magnitude,
+          &radic;(dx&sup2; + dy&sup2;). The provided <code>cameraman.png</code> has a thin white
+          border, so I cropped that out first. Otherwise, the border would show up as a strong
+          edge even though it isn't really part of the image.
+        </p>
+      </div>
+
+      <div class="gallery">
+        <figure>
+          <img class="shot" src="img/p12_dx.jpg" alt="Cameraman partial derivative in x">
+          <figcaption>Horizontal derivative, &part;I/&part;x.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p12_dy.jpg" alt="Cameraman partial derivative in y">
+          <figcaption>Vertical derivative, &part;I/&part;y.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p12_mag.jpg" alt="Cameraman gradient magnitude">
+          <figcaption>The combined gradient magnitude.</figcaption>
+        </figure>
+      </div>
+
+      <div class="prose" style="margin-top: 8px;">
+        <h3>Picking a threshold</h3>
+        <p>
+          To turn the gradient magnitude into a binary edge image, I kept only the pixels above a
+          chosen threshold. I compared four different values:
+        </p>
+      </div>
+
+      <div class="gallery four">
+        <figure>
+          <img class="shot" src="img/p12_edge_0.1.jpg" alt="Edges at threshold 0.10">
+          <figcaption><b>Threshold 0.10</b> &mdash; a lot of the grass texture still appears as edges.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p12_edge_0.15.jpg" alt="Edges at threshold 0.15">
+          <figcaption><b>Threshold 0.15.</b></figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p12_edge_0.2.jpg" alt="Edges at threshold 0.20">
+          <figcaption><b>Threshold 0.20.</b></figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p12_edge_0.25.jpg" alt="Edges at threshold 0.25">
+          <figcaption><b>Threshold 0.25</b> &mdash; my final choice.</figcaption>
+        </figure>
+      </div>
+
+      <div class="prose" style="margin-top: 36px;">
+        <p>
+          I ended up choosing <b>0.25</b>. At this threshold, I can still see the cameraman's
+          outline, the camera, the tripod legs, and the buildings in the background, while most
+          of the noisy grass texture disappears. If I raise the threshold any more, thin edges
+          like the tripod legs start to break apart. If I lower it, the grass comes back. I don't
+          think any single threshold can remove the grass completely here because a one-pixel
+          difference responds to every small bit of texture. Smoothing in Part 1.3 helps with
+          that problem.
+        </p>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">3</span>
+        <h2><span class="sub">Part 1.3</span>Derivative of Gaussian</h2>
+      </div>
+
+      <div class="prose">
+        <p>
+          To cut down on the noise, I blurred the image with a Gaussian before taking its
+          derivatives. I made the 2D Gaussian filter (9&times;9, &sigma; = 1.5) by taking the outer
+          product of <code>cv2.getGaussianKernel</code> with itself. After that, I used the same
+          derivative filters as before.
+        </p>
+      </div>
+
+      <div class="gallery">
+        <figure>
+          <img class="shot" src="img/p13_blur.jpg" alt="Cameraman after Gaussian smoothing">
+          <figcaption>The cameraman after Gaussian smoothing.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p13_dx.jpg" alt="x derivative of the blurred cameraman">
+          <figcaption>The x derivative of the blurred image.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p13_dy.jpg" alt="y derivative of the blurred cameraman">
+          <figcaption>The y derivative of the blurred image.</figcaption>
+        </figure>
+      </div>
+      <div class="gallery four">
+        <figure>
+          <img class="shot" src="img/p13_mag.jpg" alt="Gradient magnitude after smoothing">
+          <figcaption>Gradient magnitude after smoothing.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p13_edge_0.05.jpg" alt="Smoothed edges at threshold 0.05">
+          <figcaption><b>Threshold 0.05.</b></figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p13_edge_0.075.jpg" alt="Smoothed edges at threshold 0.075">
+          <figcaption><b>Threshold 0.075</b> &mdash; a good middle ground.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p13_edge_0.1.jpg" alt="Smoothed edges at threshold 0.10">
+          <figcaption><b>Threshold 0.10.</b></figcaption>
+        </figure>
+      </div>
+
+      <div class="prose" style="margin-top: 8px;">
+        <h3>What smoothing changed</h3>
+        <ul>
+          <li><b>Most of the grass noise is gone.</b> The blur removes small pixel-to-pixel changes in the grass before the derivative filter sees them.</li>
+          <li><b>The edges look thicker, smoother, and more connected.</b> Before smoothing, many of them were thin or broken. Now the cameraman's coat and the tripod legs form much more solid lines.</li>
+          <li><b>The useful threshold dropped from 0.25 to 0.075.</b> Blurring spreads an edge across several pixels, so the gradient at each pixel becomes smaller.</li>
+        </ul>
+
+        <h3>Doing it with one filter</h3>
+        <p>
+          Because convolution is associative, I can blur and differentiate in a single step. I
+          first convolve the Gaussian with D<sub>x</sub> and D<sub>y</sub> to create two
+          <b>derivative of Gaussian (DoG)</b> filters. Then the image only needs one convolution
+          with each of those filters.
+        </p>
+      </div>
+
+      <div class="gallery four">
+        <figure class="filter">
+          <img class="shot" src="img/p13_gauss.png" alt="9 by 9 Gaussian filter, enlarged">
+          <figcaption>The 9&times;9 Gaussian filter (&sigma; = 1.5) built from <code>cv2.getGaussianKernel</code>, enlarged.</figcaption>
+        </figure>
+        <figure class="filter">
+          <img class="shot" src="img/p13_dogx.png" alt="DoG filter in x, enlarged">
+          <figcaption>The x-direction DoG filter (Gaussian &lowast; D<sub>x</sub>), enlarged so it is easier to see.</figcaption>
+        </figure>
+        <figure class="filter">
+          <img class="shot" src="img/p13_dogy.png" alt="DoG filter in y, enlarged">
+          <figcaption>The y-direction DoG filter (Gaussian &lowast; D<sub>y</sub>).</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p13_dog_mag.jpg" alt="Gradient magnitude computed with DoG filters">
+          <figcaption>Gradient magnitude calculated with the two DoG filters.</figcaption>
+        </figure>
+      </div>
+
+      <div class="prose" style="margin-top: 36px;">
+        <p>
+          The largest difference between the two approaches is only
+          <b>7 &times; 10<sup>&minus;16</sup></b>, so aside from floating-point rounding, they
+          produce the same result.
+        </p>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">4</span>
+        <h2><span class="sub">Part 2.1</span>Sharpening</h2>
+      </div>
+
+      <div class="prose">
+        <p>
+          A Gaussian blur is a low-pass filter, meaning it keeps the slow changes in an image
+          while removing the fast ones. Because of that, <b>image &minus; blurred image</b> leaves
+          behind the high frequencies: edges, texture, and other fine details. To sharpen an
+          image, I add a scaled version of those high frequencies back to the original:
+        </p>
+        <p class="eq">
+          sharpened = <i>f</i> + &alpha;(<i>f</i> &minus; <i>f</i> &lowast; <i>G</i>) = <i>f</i> &lowast; ((1 + &alpha;)<i>e</i> &minus; &alpha;<i>G</i>)
+        </p>
+        <p>
+          Here, <i>e</i> is the unit impulse, which is just the filter that leaves the image
+          unchanged. This means I can apply the entire unsharp mask with a single convolution
+          using the filter (1 + &alpha;)<i>e</i> &minus; &alpha;<i>G</i>. I used a 9&times;9
+          Gaussian with &sigma; = 2 and applied the filter separately to each color channel.
+        </p>
+<pre><code>G = g(9, 2)
+e = np.zeros((9, 9))
+e[4, 4] = 1
+save('p21_' + n + '_' + str(k) + '.jpg', cc(a, (1 + k) * e - k * G))</code></pre>
+
+        <h3>Taj Mahal</h3>
+      </div>
+
+      <div class="gallery">
+        <figure>
+          <img class="shot" src="img/taj.jpg" alt="Taj Mahal, original">
+          <figcaption>The original image.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p21_taj_blur.jpg" alt="Taj Mahal, blurred">
+          <figcaption>The blurred image, containing mostly low frequencies.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p21_taj_high.jpg" alt="Taj Mahal, high frequencies">
+          <figcaption>Original minus blurred, showing the high frequencies.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p21_taj_1.jpg" alt="Taj Mahal sharpened with alpha 1">
+          <figcaption>Sharpened with &alpha; = 1.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p21_taj_2.jpg" alt="Taj Mahal sharpened with alpha 2">
+          <figcaption>Sharpened with &alpha; = 2.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p21_taj_5.jpg" alt="Taj Mahal sharpened with alpha 5">
+          <figcaption>Sharpened with &alpha; = 5. This is too strong: there are bright halos around the dome and the sky looks grainy.</figcaption>
+        </figure>
+      </div>
+
+      <div class="prose" style="margin-top: 8px;">
+        <h3>My choice: the fighter-pilot cat</h3>
+      </div>
+
+      <div class="gallery">
+        <figure>
+          <img class="shot" src="img/cat.jpg" alt="Fighter-pilot cat, original">
+          <figcaption>The original image.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p21_cat_blur.jpg" alt="Fighter-pilot cat, blurred">
+          <figcaption>The blurred version.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p21_cat_high.jpg" alt="Fighter-pilot cat, high frequencies">
+          <figcaption>The high-frequency details.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p21_cat_1.jpg" alt="Fighter-pilot cat sharpened with alpha 1">
+          <figcaption>Sharpened with &alpha; = 1.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p21_cat_2.jpg" alt="Fighter-pilot cat sharpened with alpha 2">
+          <figcaption>Sharpened with &alpha; = 2.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p21_cat_5.jpg" alt="Fighter-pilot cat sharpened with alpha 5">
+          <figcaption>Sharpened with &alpha; = 5.</figcaption>
+        </figure>
+      </div>
+
+      <div class="prose" style="margin-top: 36px;">
+        <p>
+          The whiskers and fur look noticeably crisper around &alpha; = 1 or 2. At &alpha; = 5, the
+          filter also brings out the JPEG block artifacts in this compressed meme image. The
+          filter can't tell useful detail from noise, so it sharpens both.
+        </p>
+
+        <h3>Blurring, then sharpening</h3>
+        <p>
+          Next, I started with a sharp photo, blurred it, and tried to recover the original look
+          by sharpening it with &alpha; = 2.
+        </p>
+      </div>
+
+      <div class="gallery">
+        <figure>
+          <img class="shot" src="img/curry.jpg" alt="Sharp portrait of Stephen Curry, original">
+          <figcaption>The original photo.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p21_curry_blur.jpg" alt="Curry portrait, blurred">
+          <figcaption>The blurred photo.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p21_curry_sharp.jpg" alt="Curry portrait, blurred and then sharpened">
+          <figcaption>The result after sharpening the blurred photo.</figcaption>
+        </figure>
+      </div>
+
+      <div class="prose" style="margin-top: 36px;">
+        <p>
+          The sharpened result definitely looks crisper than the blurred version. The outlines
+          around the eyes, eyebrows, and beard become visible again, but it's still clearly worse
+          than the original. The blur already removed the fine beard texture and skin detail, and
+          sharpening can only amplify frequencies that are still present. It can strengthen the
+          remaining edges, but it can't recreate information that's gone.
+        </p>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">5</span>
+        <h2><span class="sub">Part 2.2</span>Hybrid images</h2>
+      </div>
+
+      <div class="prose">
+        <p>
+          A hybrid image mixes the <b>low frequencies from one image</b> with the <b>high
+          frequencies from another</b>. When I look at it up close, my eyes notice the fine
+          detail, so the high-frequency image stands out. From farther away, those tiny details
+          become hard to see, leaving the low-frequency image instead.
+        </p>
+        <p>For each pair, I followed the same process:</p>
+        <ol>
+          <li><b>Align the images.</b> I clicked both eyes in each image and used the provided <code>align_images</code> function to match their position, scale, and rotation. Then I cropped the result to the area where both images had content.</li>
+          <li><b>Low-pass one image</b> with a Gaussian using sigma &sigma;<sub>1</sub>.</li>
+          <li><b>High-pass the other image</b> by calculating image &minus; Gaussian(&sigma;<sub>2</sub>), which is equivalent to the impulse minus a Gaussian.</li>
+          <li><b>Add the two filtered images together.</b></li>
+        </ol>
+        <p>
+          Each hybrid below includes a <b>Close view / Far view</b> toggle. The far view makes the
+          image smaller, which is similar to physically stepping back from the screen.
+        </p>
+
+        <h3>Favorite: Curry &harr; Goat</h3>
+        <p>
+          Up close, I see Stephen Curry. From farther away, I see a goat.
+        </p>
+      </div>
+
+      <div class="gallery four">
+        <figure>
+          <img class="shot" src="img/p22_curry_1.jpg" alt="Aligned Curry image">
+          <figcaption>Aligned Curry image, used for the high frequencies.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p22_curry_2.jpg" alt="Aligned goat image">
+          <figcaption>Aligned goat image, used for the low frequencies.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p22_curry_high.jpg" alt="Curry after high-pass filtering">
+          <figcaption>Curry after high-pass filtering with &sigma;<sub>2</sub> = 3.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p22_curry_low.jpg" alt="Goat after low-pass filtering">
+          <figcaption>The goat after low-pass filtering with &sigma;<sub>1</sub> = 8.</figcaption>
+        </figure>
+      </div>
+
+      <figure class="hybrid">
+        <div class="view" role="group" aria-label="Viewing distance">
+          <button type="button" class="on" data-v="close">Close view</button>
+          <button type="button" data-v="far">Far view</button>
+        </div>
+        <div class="stage"><img class="shot" src="img/p22_curry_hybrid.jpg" alt="Hybrid of Curry and a goat"></div>
+        <figcaption><b>The final hybrid image.</b></figcaption>
+      </figure>
+
+      <div class="prose" style="margin-top: 44px;">
+        <p>
+          <b>Fourier transforms</b> (log magnitude, calculated with
+          <code>np.log(np.abs(np.fft.fftshift(np.fft.fft2(img))))</code>):
+        </p>
+      </div>
+
+      <div class="gallery five">
+        <figure>
+          <img class="shot" src="img/p22_fft_1.jpg" alt="Fourier transform of Curry">
+          <figcaption>Fourier transform of Curry.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p22_fft_2.jpg" alt="Fourier transform of the goat">
+          <figcaption>Fourier transform of the goat.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p22_fft_high.jpg" alt="Fourier transform of high-passed Curry">
+          <figcaption>High-passed Curry. The center, where the low frequencies live, is suppressed.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p22_fft_low.jpg" alt="Fourier transform of low-passed goat">
+          <figcaption>Low-passed goat. Only a small bright area around the center remains.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p22_fft_hybrid.jpg" alt="Fourier transform of the hybrid">
+          <figcaption>The hybrid spectrum: the goat is concentrated near the center, while Curry extends toward the edges.</figcaption>
+        </figure>
+      </div>
+
+      <div class="prose" style="margin-top: 36px;">
+        <p>
+          <b>How I chose the cutoffs.</b> A larger &sigma; in the image corresponds to a lower
+          cutoff in frequency. I used &sigma;<sub>1</sub> = 8 for the goat so that its fur texture
+          and eye details disappear, leaving only its overall shape and shading. That way, the
+          goat doesn't compete with Curry when I view the image up close. For Curry, I chose
+          &sigma;<sub>2</sub> = 3 so that only the finest details&mdash;his eyes, eyebrows, and
+          beard texture&mdash;remain. Those details fade quickly from a distance. When I placed
+          the two cutoffs too close together, both faces stayed visible at every viewing
+          distance. A larger &sigma;<sub>2</sub> also let too much of Curry's face shape through,
+          so he no longer disappeared in the far view.
+        </p>
+
+        <h3>Derek &harr; Nutmeg</h3>
+      </div>
+
+      <div class="gallery two">
+        <figure>
+          <img class="shot" src="img/p22_derek_1.jpg" alt="Aligned Nutmeg image">
+          <figcaption>Nutmeg, used for the high frequencies.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p22_derek_2.jpg" alt="Aligned Derek image">
+          <figcaption>Derek, used for the low frequencies.</figcaption>
+        </figure>
+      </div>
+
+      <figure class="hybrid">
+        <div class="view" role="group" aria-label="Viewing distance">
+          <button type="button" class="on" data-v="close">Close view</button>
+          <button type="button" data-v="far">Far view</button>
+        </div>
+        <div class="stage"><img class="shot" src="img/p22_derek_hybrid.jpg" alt="Hybrid of Nutmeg and Derek"></div>
+        <figcaption><b>The hybrid image</b> with &sigma;<sub>1</sub> = 10 and &sigma;<sub>2</sub> = 6.</figcaption>
+      </figure>
+
+      <div class="prose" style="margin-top: 36px;">
+        <p>
+          Nutmeg's head is tilted in the original photo, so I passed Nutmeg in as the first image
+          to <code>align_images</code>. Since the code rotates the first image, this made the
+          cat's head level while Derek stayed upright.
+        </p>
+
+        <h3>Natalie Portman, then and now</h3>
+        <p>
+          This pair shows the same person about twenty years apart: present-day Natalie appears
+          up close, while young Natalie as Padm&eacute; appears from farther away.
+        </p>
+      </div>
+
+      <div class="gallery two">
+        <figure>
+          <img class="shot" src="img/p22_natalie_1.jpg" alt="Aligned present-day Natalie Portman">
+          <figcaption>Natalie now, used for the high frequencies.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p22_natalie_2.jpg" alt="Aligned young Natalie Portman as Padmé">
+          <figcaption>Natalie then, used for the low frequencies.</figcaption>
+        </figure>
+      </div>
+
+      <figure class="hybrid">
+        <div class="view" role="group" aria-label="Viewing distance">
+          <button type="button" class="on" data-v="close">Close view</button>
+          <button type="button" data-v="far">Far view</button>
+        </div>
+        <div class="stage"><img class="shot" src="img/p22_natalie_hybrid.jpg" alt="Hybrid of Natalie Portman now and then"></div>
+        <figcaption><b>The hybrid image</b> with &sigma;<sub>1</sub> = 4 and &sigma;<sub>2</sub> = 1.</figcaption>
+      </figure>
+
+      <div class="prose" style="margin-top: 36px;">
+        <p>
+          I think this was the hardest pair to balance. Young Natalie's face is darker and has
+          less contrast under the hood, which makes her low-frequency features fairly weak. I had
+          to keep only the very finest details from the present-day image with
+          &sigma;<sub>2</sub> = 1 so that it wouldn't overpower the younger face.
+        </p>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">6</span>
+        <h2><span class="sub">Part 2.3</span>Gaussian and Laplacian stacks</h2>
+      </div>
+
+      <div class="prose">
+        <p>
+          A <b>stack</b> works like an image pyramid, except there is no downsampling, so every
+          level keeps the original image size.
+        </p>
+        <ul>
+          <li><b>Gaussian stack:</b> Level 0 is the original image. Each new level is more blurred than the last (&sigma; = 1, 2, 4, 8, 16), so it keeps progressively lower frequencies.</li>
+          <li><b>Laplacian stack:</b> Each level is the difference between two neighboring Gaussian levels, so it represents one band of frequencies. The final level is the most blurred Gaussian image. Adding every Laplacian level together reconstructs the original image almost exactly; I measured an error of 1 &times; 10<sup>&minus;16</sup>.</li>
+        </ul>
+<pre><code>def gs(a, n):
+    g = [a]
+    for i in range(n):
+        g.append(blur(g[-1], 2 ** i))
+    return g
+
+
+def ls(g):
+    return [g[i] - g[i + 1] for i in range(len(g) - 1)] + [g[-1]]</code></pre>
+      </div>
+
+      <div class="pair single">
+        <figure>
+          <img class="shot" src="img/p23_stacks.jpg" alt="Gaussian and Laplacian stacks of the apple and the orange">
+          <figcaption>From top to bottom: the apple Gaussian stack, apple Laplacian stack, orange Gaussian stack, and orange Laplacian stack. I brightened the Laplacian levels so they are easier to see.</figcaption>
+        </figure>
+      </div>
+
+      <div class="prose" style="margin-top: 8px;">
+        <h3>Recreating Szeliski Figure 3.42</h3>
+        <p>
+          For the blend, I also build a Gaussian stack for the mask. At each level, I calculate
+          mask &times; apple + (1 &minus; mask) &times; orange, then add all the blended levels
+          together. The mask stays sharp at the fine levels and becomes very soft at the coarse
+          levels. This means the fine details switch from one image to the other within a few
+          pixels, while the larger color changes blend across a much wider area. Together, those
+          transitions hide the seam.
+        </p>
+      </div>
+
+      <div class="pair single narrow">
+        <figure>
+          <img class="shot" src="img/p23_fig342.jpg" alt="Recreation of Szeliski Figure 3.42 with the apple and orange">
+          <figcaption>The rows show Laplacian levels 0, 2, and 4, followed by the sum of all levels. The columns show the masked apple, masked orange, and their combination.</figcaption>
+        </figure>
+      </div>
+      <div class="pair single tiny">
+        <figure>
+          <img class="shot" src="img/p23_oraple.jpg" alt="The oraple: half apple, half orange, blended seamlessly">
+          <figcaption><b>The final oraple.</b></figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">7</span>
+        <h2><span class="sub">Part 2.4</span>Multiresolution blending</h2>
+      </div>
+
+      <div class="prose">
+        <p>
+          I used the same stack-based method to blend images with irregular masks. For each pair,
+          I first warped the second photo so that its subject lined up with the correct spot in
+          the first photo. Then I made an elliptical mask with <code>np.mgrid</code> and blended
+          across 8 stack levels. With that many levels, the coarsest layers can mix colors over a
+          very wide area.
+        </p>
+
+        <h3>Favorite: Tiger Pilot</h3>
+        <p>
+          For this one, I placed a tiger's face inside the fighter-pilot helmet. I lined up the
+          tiger's eyes with the cat's eyes using a similarity transform, which changes only the
+          scale and position.
+        </p>
+      </div>
+
+      <div class="gallery">
+        <figure>
+          <img class="shot" src="img/cat.jpg" alt="Fighter-pilot cat background">
+          <figcaption>The fighter-pilot cat used as the background.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p24_tiger_b.jpg" alt="Tiger warped so its eyes line up with the cat's eyes">
+          <figcaption>The warped tiger, with its eyes aligned to the cat's eyes.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p24_tiger_mask.jpg" alt="Elliptical mask for the tiger blend">
+          <figcaption>The elliptical blending mask.</figcaption>
+        </figure>
+      </div>
+      <div class="pair single narrow">
+        <figure>
+          <img class="shot" src="img/p24_tiger.jpg" alt="Tiger Pilot: a tiger face blended into the fighter-pilot helmet">
+          <figcaption><b>The final Tiger Pilot.</b></figcaption>
+        </figure>
+      </div>
+      <div class="pair single narrow">
+        <figure>
+          <img class="shot" src="img/p24_fig.jpg" alt="Laplacian stack breakdown of the Tiger Pilot blend">
+          <figcaption>The Laplacian stack for the blend. The rows show levels 0, 2, and 4, followed by the final sum. The columns show the masked tiger, masked cat, and their combination.</figcaption>
+        </figure>
+      </div>
+
+      <div class="prose" style="margin-top: 36px;">
+        <p>
+          At level 0, the seam is a sharp oval. This lets the tiger's whiskers and stripes stop
+          cleanly at the edge instead of creating ghosted details. By level 4, the seam has turned
+          into a wide, soft blur, so the tiger's orange color slowly fades into the dark helmet.
+          When I add all the levels together, the edge of the face disappears naturally into the
+          helmet's shadow.
+        </p>
+
+        <h3>Eye of the Storm</h3>
+        <p>
+          For this blend, I placed a human iris inside the eye of Hurricane Isabel, photographed
+          from the International Space Station. The hurricane's eye looks oval because the photo
+          was taken at an angle, so I used an affine transform to stretch the circular iris until
+          it matched.
+        </p>
+      </div>
+
+      <div class="gallery">
+        <figure>
+          <img class="shot" src="img/isabel.jpg" alt="Hurricane Isabel seen from the International Space Station">
+          <figcaption>Hurricane Isabel used as the background.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p24_storm_b.jpg" alt="Iris warped to fit the hurricane's eye">
+          <figcaption>The iris after warping it to fit the hurricane's eye.</figcaption>
+        </figure>
+        <figure>
+          <img class="shot" src="img/p24_storm_mask.jpg" alt="Elliptical mask for the storm blend">
+          <figcaption>The elliptical blending mask.</figcaption>
+        </figure>
+      </div>
+      <div class="pair single">
+        <figure>
+          <img class="shot" src="img/p24_storm.jpg" alt="Eye of the Storm: a human iris blended into the eye of Hurricane Isabel">
+          <figcaption><b>The final Eye of the Storm blend.</b></figcaption>
+        </figure>
+      </div>
+
+      <div class="prose" style="margin-top: 36px;">
+        <p>
+          The clouds around the hurricane's eye fade nicely into the dark outer ring of the iris.
+          I think the final result makes the storm look like it is staring back at you.
+        </p>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">8</span>
+        <h2><span class="sub">Wrapping up</span>What I learned</h2>
+      </div>
+
+      <div class="prose">
+        <p>
+          The biggest thing I took away from this project is that shape and fine detail live at
+          different frequencies. A lot of image processing is really about deciding which of
+          those frequencies to keep, remove, or combine. Blurring, sharpening, edge detection,
+          hybrid images, and seamless blending may look like very different tasks, but they all
+          come back to Gaussian filters and subtraction. Hybrid images were probably the most
+          surprising part for me. The exact same pixels can show two different pictures
+          depending on how far away I stand, simply because my eyes start acting like a low-pass
+          filter at a distance.
+        </p>
+      </div>
+    </section>
+
+    <p class="credits">
+      The tiger image, &ldquo;Tiger Face,&rdquo; and the iris image, &ldquo;Iris Macro, Eye
+      close-up,&rdquo; are from Flickr under CC BY 2.0. The Hurricane Isabel photo was taken from
+      the International Space Station by NASA and is in the public domain. I found all three
+      through Wikimedia Commons. Derek, Nutmeg, the cameraman, the Taj Mahal, the apple, and the
+      orange came from the CS 180 course materials.
+    </p>
+
+    <a class="backlink" href="/cs180/">← All CS 180 projects</a>
+
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>UC Berkeley coursework</span>
+    <span class="spacer"><a href="/cs180/">CS 180</a></span>
+  </div>
+</footer>
+
+<script src="../../assets/js/site.js"></script>
+<script src="../../assets/js/theme.js"></script>
+<script>
+  document.querySelectorAll('.hybrid').forEach(function (f) {
+    var stage = f.querySelector('.stage');
+    f.querySelectorAll('.view button').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var far = b.dataset.v === 'far';
+        if (far) stage.style.minHeight = stage.offsetHeight + 'px';
+        f.classList.toggle('far', far);
+        f.querySelectorAll('.view button').forEach(function (x) { x.classList.toggle('on', x === b); });
+      });
+    });
+  });
+</script>
+</body>
+</html>
