@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CS 180 · Project 3A</title>
+<title>CS 180 · Project 3</title>
 <meta name="description" content="Project 3A for CS 180: flow matching with PixNerd, from one-step denoising and Euler sampling to classifier-free guidance, image editing, visual anagrams, and hybrid images.">
 <link rel="icon" href="../../assets/img/berkeley-seal.svg">
 <script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
@@ -101,6 +101,35 @@
     .print-only { display: block; }
     .static-pair.print-only { display: flex; }
   }
+  pre {
+    margin: 0 0 18px; padding: 16px 18px; overflow-x: auto;
+    background: var(--bg-alt); border: 1px solid var(--line); border-radius: var(--radius);
+    font-size: .8rem; line-height: 1.55;
+  }
+  pre code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .path { text-align: center; font: 600 1rem Inter, sans-serif; letter-spacing: .06em; margin: 6px 0 22px !important; }
+  .pair.single.digits { max-width: 520px; }
+  .partnav {
+    position: sticky; top: 12px; z-index: 20; display: flex; justify-content: center; margin: 0 0 8px;
+  }
+  .partnav div {
+    display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 999px;
+    background: var(--bg); box-shadow: var(--shadow);
+  }
+  .partnav a {
+    font: 600 12px Inter, sans-serif; letter-spacing: .06em; color: var(--ink-soft);
+    border-radius: 999px; padding: 8px 16px; text-decoration: none;
+  }
+  .partnav a.on { background: var(--ink); color: var(--bg); }
+  .partbanner { padding: 72px 0 8px; border-top: 1px solid var(--line); scroll-margin-top: 60px; }
+  .partbanner:first-of-type { border-top: 0; padding-top: 32px; }
+  .partbanner .eyebrow { margin-bottom: 10px; }
+  .partbanner h2 { font-family: "Instrument Serif", serif; font-weight: 400; font-size: clamp(2rem, 4vw, 2.8rem); margin: 0 0 18px; }
+  .partbanner .prose { max-width: var(--measure); }
+  .toy.widefig { max-width: 820px; }
+  .epochs img { width: 100%; margin-top: 16px; }
+  .noisebox img { width: 100%; }
+  @media print { .partnav { display: none !important; } }
 </style>
 </head>
 <body>
@@ -123,7 +152,7 @@
   <div class="wrap">
 
     <div class="hero compact">
-      <p class="eyebrow">CS 180 <span class="dot">·</span> Project 3A</p>
+      <p class="eyebrow">CS 180 <span class="dot">·</span> Project 3</p>
       <h1>Exploring the Power of Flow Models</h1>
       <p class="lead">
         In this project, I explored image generation and editing using PixNerd-XXL, a pretrained
@@ -137,17 +166,17 @@
         into coherent images, and how different sampling and guidance strategies affect the
         generated results.
       </p>
-      <div class="chips">
-        <span class="chip">PixNerd-XXL-P16-T2I</span>
-        <span class="chip">512 × 512</span>
-        <span class="chip">Euler step h = 0.02</span>
-        <span class="chip">CFG w = 7</span>
-        <span class="chip">Seed 180</span>
-      </div>
       <div class="rule"></div>
     </div>
 
-    <section class="task">
+    <nav class="partnav screen-only" aria-label="Project parts">
+      <div>
+        <a href="#part-a" class="on" data-part="part-a">Part A · Pretrained flow model</a>
+        <a href="#part-b" data-part="part-b">Part B · Flow matching from scratch</a>
+      </div>
+    </nav>
+
+    <section class="task" id="part-a" style="scroll-margin-top:60px">
       <div class="task-head">
         <span class="task-num">1</span>
         <h2><span class="sub">Part 1.1</span>Constructing noisy training inputs</h2>
@@ -747,6 +776,501 @@
       </div>
     </section>
 
+    <div class="partbanner" id="part-b">
+      <p class="eyebrow">Part B</p>
+      <h2>Flow Matching from Scratch</h2>
+      <div class="prose">
+        <p>
+          In Part B, I implemented and trained generative models on the MNIST handwritten digit
+          dataset from scratch.
+        </p>
+        <p>
+          I started by training a UNet to remove a fixed amount of Gaussian noise in a single
+          step. I then extended the architecture into a flow matching model, which learns to
+          transform random noise into images through a sequence of velocity predictions.
+          Finally, I added time conditioning, class conditioning, and classifier-free guidance to
+          improve the generation process and control which digits are produced.
+        </p>
+        <p>
+          Instead of using Google Colab, I trained every model locally on a single NVIDIA RTX
+          A6000 GPU. The complete notebook, including training and sampling, took approximately
+          12 minutes.
+        </p>
+      </div>
+    </div>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">1</span>
+        <h2><span class="sub">Part B · 1.1</span>Implementing the UNet</h2>
+      </div>
+      <div class="prose">
+        <p>
+          I implemented a UNet architecture to reconstruct 28 × 28 grayscale images from noisy
+          inputs. The network progressively downsamples the image into a compact 1 × 1
+          representation before upsampling it back to the original resolution.
+        </p>
+        <p>
+          Skip connections transfer features from the downsampling path to the corresponding
+          upsampling layers, helping preserve spatial information that might otherwise be lost.
+        </p>
+        <p>The architecture consists of the following operations:</p>
+        <h3>Basic operations</h3>
+        <ul>
+          <li><b>Conv:</b> A 3 × 3 convolution followed by BatchNorm and GELU.</li>
+          <li><b>DownConv:</b> A convolution with stride 2 to reduce spatial resolution by half.</li>
+          <li><b>UpConv:</b> A 4 × 4 transposed convolution with stride 2 to double the spatial resolution.</li>
+          <li><b>Flatten:</b> A 7 × 7 average pooling operation that reduces the feature map to 1 × 1.</li>
+          <li><b>Unflatten:</b> A 7 × 7 transposed convolution that expands the feature map back to 7 × 7.</li>
+        </ul>
+        <h3>Composed blocks</h3>
+        <ul>
+          <li><b>ConvBlock:</b> Two consecutive Conv operations.</li>
+          <li><b>DownBlock:</b> A DownConv followed by a ConvBlock.</li>
+          <li><b>UpBlock:</b> An UpConv followed by a ConvBlock.</li>
+        </ul>
+        <p>The spatial resolution follows the sequence:</p>
+        <p class="path">28 → 14 → 7 → 1 → 7 → 14 → 28</p>
+        <p>
+          During upsampling, features from the corresponding downsampling layers are
+          concatenated to preserve information about the original image.
+        </p>
+<pre><code>def forward(self, x: torch.Tensor) -> torch.Tensor:
+    x0 = self.init_conv(x)
+    x1 = self.down1(x0)
+    x2 = self.down2(x1)
+    x3 = self.unflatten(self.flatten(x2))
+    x4 = self.up1(torch.cat([x3, x2], dim=1))
+    x5 = self.up2(torch.cat([x4, x1], dim=1))
+    return self.out(torch.cat([x5, x0], dim=1))</code></pre>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">2</span>
+        <h2><span class="sub">Part B · 1.2</span>Using the UNet to train a denoiser</h2>
+      </div>
+      <div class="prose">
+        <p>To construct noisy training inputs, I added Gaussian noise to clean MNIST images:</p>
+        <p class="eq">$$z = x + \sigma\epsilon,\qquad \epsilon\sim\mathcal{N}(0,I)$$</p>
+        <p>
+          Here, \(x\) is the original image, \(\epsilon\) is standard Gaussian noise, and
+          \(\sigma\) controls the noise strength.
+        </p>
+      </div>
+
+      <div class="toy widefig noisebox screen-only">
+        <p class="kicker">Turn up the noise</p>
+        <img id="noiseImg" src="img/partb/noise_0.png" alt="Ten MNIST digits with added noise">
+        <p class="readout" id="noiseLabel">σ = 0</p>
+        <div class="controls">
+          <input type="range" id="noiseSlider" min="0" max="6" value="0" aria-label="Noise level">
+        </div>
+      </div>
+      <div class="pair single wide print-only">
+        <figure><img class="shot" src="img/partb/noise_all.png" alt="The same ten digits at seven noise levels"></figure>
+      </div>
+      <p class="screen-only" style="text-align:center;margin-top:12px;font-size:.88rem;color:var(--ink-soft)">The same 10 training digits at σ = 0, 0.2, 0.4, 0.5, 0.6, 0.8, and 1.0.</p>
+      <div class="prose" style="margin-top:24px">
+        <p class="print-only" style="font-size:.88rem;color:var(--ink-soft)">The same 10 training digits at σ = 0, 0.2, 0.4, 0.5, 0.6, 0.8, and 1.0.</p>
+        <p>
+          As \(\sigma\) increases, the digits become increasingly obscured by noise and are
+          difficult to recognize at \(\sigma=1.0\).
+        </p>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">3</span>
+        <h2><span class="sub">Part B · 1.2.1</span>Training</h2>
+      </div>
+      <div class="prose">
+        <p>
+          I trained the UNet with \(D=128\) to reconstruct clean images from inputs corrupted
+          with Gaussian noise at \(\sigma=0.5\).
+        </p>
+        <p>
+          The model was trained for 5 epochs using MSE loss, Adam with a learning rate of
+          \(10^{-4}\), and a batch size of 256. I shuffled the training dataset and sampled fresh
+          Gaussian noise for each batch, allowing the model to learn from different noisy
+          versions of the same digits.
+        </p>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/partb/denoising_loss.png" alt="Training loss of the sigma 0.5 denoiser"><figcaption>Training loss for the denoising model with σ = 0.5. The orange line shows a 100-step moving average.</figcaption></figure>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/partb/denoise_1.png" alt="Denoising results after epoch 1"><figcaption><b>After epoch 1.</b> Rows show the clean images, noisy inputs (σ = 0.5), and denoised outputs.</figcaption></figure>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/partb/denoise_5.png" alt="Denoising results after epoch 5"><figcaption><b>After epoch 5.</b></figcaption></figure>
+      </div>
+      <div class="prose" style="margin-top:36px">
+        <p>
+          The training loss decreases rapidly from approximately 0.20 to about 0.01 before
+          improving more gradually.
+        </p>
+        <p>
+          After the first epoch, most reconstructed digits are already recognizable, although
+          their edges remain somewhat blurry. By epoch 5, the outputs are considerably sharper
+          and closely resemble the original images.
+        </p>
+        <p>
+          This suggests that the UNet can effectively learn to remove a fixed level of Gaussian
+          noise while preserving the underlying digit structure.
+        </p>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">4</span>
+        <h2><span class="sub">Part B · 1.2.2</span>Out-of-distribution testing</h2>
+      </div>
+      <div class="prose">
+        <p>
+          Since the denoiser was trained exclusively with \(\sigma=0.5\), I evaluated its
+          performance on inputs corrupted with different noise levels.
+        </p>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/partb/ood_all.png" alt="Denoising results for sigma from 0 to 1.0"><figcaption>Denoising results across σ = 0 to 1.0. In each pair, the top row shows noisy inputs, and the bottom row shows the corresponding denoised outputs.</figcaption></figure>
+      </div>
+      <div class="prose" style="margin-top:36px">
+        <p>From σ = 0 to 0.6, the denoised digits are clean and almost identical to the originals, even though the model was only trained at σ = 0.5. At σ = 0.8, the outputs are still readable but become blotchy, with gray specks and broken strokes, especially in the thin 1s and the 4s. At σ = 1.0, several digits fall apart: the 1s turn into scribbles, one 4 looks like an X, and the 9s become smudges, while bold digits like the 7, 2, and 0 still survive.</p>
+        <p>
+          The model is trained to remove a specific amount of noise, so its performance may
+          degrade when the input noise differs substantially from the training distribution. At
+          higher noise levels, the model may fail to remove all the noise or reconstruct
+          incorrect digit structures.
+        </p>
+        <p>This experiment illustrates the limitations of training a denoiser at a single fixed noise level.</p>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">5</span>
+        <h2><span class="sub">Part B · 1.2.3</span>Denoising pure noise</h2>
+      </div>
+      <div class="prose">
+        <p>
+          Next, I trained another UNet using the same architecture and training settings, but
+          replaced the noisy digit inputs with independent Gaussian noise.
+        </p>
+        <p>Unlike the previous experiment, the input now contains no information about the target digit.</p>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/partb/pure_noise_loss.png" alt="Training loss of the pure-noise denoiser"><figcaption>Training loss for the pure-noise denoising experiment.</figcaption></figure>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/partb/pure_noise_1.png" alt="Pure-noise denoising after epoch 1"><figcaption><b>After epoch 1.</b> The top row shows Gaussian noise, and the bottom row shows the model outputs.</figcaption></figure>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/partb/pure_noise_5.png" alt="Pure-noise denoising after epoch 5"><figcaption><b>After epoch 5.</b></figcaption></figure>
+      </div>
+      <div class="prose" style="margin-top:36px">
+        <p>
+          The model produces nearly identical blurry outputs regardless of the input noise. The
+          results resemble several overlapping digits, with a bright, rounded structure that
+          contains features resembling 0, 3, 8, and 9.
+        </p>
+        <p>
+          There is little visible improvement between epochs 1 and 5, and the training loss
+          quickly plateaus near 0.07.
+        </p>
+        <p>
+          This result can be explained by the MSE objective. Because the input noise is
+          independent of the target image, the model cannot determine which digit it should
+          reconstruct. The prediction that minimizes the expected squared error is therefore the
+          average of the training images.
+        </p>
+        <p>
+          As a result, the model learns an approximation of the mean MNIST digit rather than
+          generating distinct, recognizable digits.
+        </p>
+        <p>
+          This motivates flow matching, which learns a velocity field that gradually transforms
+          noise into images instead of trying to predict a clean image directly from independent
+          noise in one step.
+        </p>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">6</span>
+        <h2><span class="sub">Part B · 2.1</span>Adding time conditioning to the UNet</h2>
+      </div>
+      <div class="prose">
+        <p>Flow matching defines a continuous interpolation between Gaussian noise and a clean image:</p>
+        <p class="eq">$$x_t = (1-t)\,x_0 + t\,x_1$$</p>
+        <p>
+          where \(x_0\sim\mathcal{N}(0,I)\), \(x_1\) is a clean digit, and \(t\in[0,1]\). Along
+          this linear interpolation path, the target velocity is:
+        </p>
+        <p class="eq">$$\frac{dx_t}{dt} = x_1 - x_0$$</p>
+        <p>The model is trained to predict this velocity from the interpolated image and its corresponding time:</p>
+        <p class="eq">$$\mathcal{L} = \big\|(x_1 - x_0) - u_\theta(x_t, t)\big\|^2$$</p>
+        <p>
+          To incorporate time conditioning, I added two fully connected blocks, each consisting
+          of Linear, GELU, and Linear layers.
+        </p>
+        <p>
+          The first block maps the scalar time \(t\) to \(2D\) channels, which modulate the
+          features after unflattening. The second maps \(t\) to \(D\) channels and modulates the
+          features after the first upsampling block.
+        </p>
+<pre><code>x3 = x3 * self.fc1_t(t)[:, :, None, None]
+x4 = x4 * self.fc2_t(t)[:, :, None, None]</code></pre>
+        <p>
+          By providing the current time, the network can learn different velocity predictions
+          for images at different stages of the generative process.
+        </p>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">7</span>
+        <h2><span class="sub">Part B · 2.2</span>Training the time-conditioned UNet</h2>
+      </div>
+      <div class="prose">
+        <p>I trained the time-conditioned UNet using the following settings:</p>
+      </div>
+      <div class="offsets">
+        <table>
+          <caption>Time-conditioned training</caption>
+          <tbody>
+            <tr><td>Architecture</td><td>D = 64</td></tr>
+            <tr><td>Batch size</td><td>64</td></tr>
+            <tr><td>Training duration</td><td>10 epochs</td></tr>
+            <tr><td>Optimizer</td><td>Adam</td></tr>
+            <tr><td>Initial learning rate</td><td>1e-2</td></tr>
+            <tr><td>Learning rate scheduler</td><td>Exponential decay, γ = 0.1<sup>1/10</sup></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="prose" style="margin-top:32px">
+        <p>
+          The scheduler is applied after each epoch, reducing the learning rate by a factor of
+          10 over the training process.
+        </p>
+        <p>
+          For each training example, I sampled a clean digit, independent Gaussian noise, and a
+          random interpolation time. The network then learned to predict the target velocity
+          \(x_1-x_0\).
+        </p>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/partb/time_flow_loss.png" alt="Training loss of the time-conditioned UNet"><figcaption>Training loss of the time-conditioned flow matching model.</figcaption></figure>
+      </div>
+      <div class="prose" style="margin-top:36px">
+        <p>
+          The training loss initially starts around 4, reflecting the large errors in the
+          untrained model's velocity predictions. It decreases below 0.2 within the first few
+          hundred optimization steps and gradually approaches about 0.1.
+        </p>
+        <p>
+          This indicates that the model learns to approximate the velocity field needed to move
+          from random noise toward the MNIST data distribution.
+        </p>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">8</span>
+        <h2><span class="sub">Part B · 2.3</span>Sampling from the time-conditioned UNet</h2>
+      </div>
+      <div class="prose">
+        <p>
+          After training, I used Euler integration to generate digits directly from Gaussian
+          noise. Starting at \(t=0\), I performed 50 Euler steps with a step size of 1/50. At each
+          step, the model predicts the velocity at the current image and time, then updates the
+          image:
+        </p>
+        <p class="eq">$$x \leftarrow x + \frac{u_\theta(x, t)}{50}$$</p>
+        <p>I compared generated samples after epochs 1, 5, and 10 using the same initial noise tensors.</p>
+      </div>
+
+      <div class="toy widefig epochs screen-only" data-src="img/partb/time_sample_">
+        <p class="kicker">Watch it learn</p>
+        <div class="seg" role="group" aria-label="Epoch">
+          <button type="button" class="on" data-e="1">Epoch 1</button>
+          <button type="button" data-e="5">Epoch 5</button>
+          <button type="button" data-e="10">Epoch 10</button>
+        </div>
+        <img src="img/partb/time_sample_1.png" alt="Time-conditioned samples">
+      </div>
+      <div class="print-only">
+        <div class="pair single wide"><figure><img class="shot" src="img/partb/time_sample_1.png" alt="Time-conditioned samples after epoch 1"><figcaption><b>16 generated samples after epoch 1.</b></figcaption></figure></div>
+        <div class="pair single wide"><figure><img class="shot" src="img/partb/time_sample_5.png" alt="Time-conditioned samples after epoch 5"><figcaption><b>After epoch 5.</b></figcaption></figure></div>
+        <div class="pair single wide"><figure><img class="shot" src="img/partb/time_sample_10.png" alt="Time-conditioned samples after epoch 10"><figcaption><b>After epoch 10.</b></figcaption></figure></div>
+      </div>
+
+      <div class="prose" style="margin-top:36px">
+        <p>
+          Because the initial noise is fixed across checkpoints, the figures allow direct
+          comparison of how generation quality improves with training.
+        </p>
+        <p>After epoch 1, most samples consist of thin or incomplete strokes, with only a few recognizable digits. By epoch 5, the outputs develop thicker, more coherent digit shapes. At epoch 10, many samples are clearly identifiable, including several 3s, 5s, 7s, 8s, and 9s. However, some outputs still resemble combinations of multiple digits.</p>
+        <p>
+          Since this model is conditioned only on time, it has no explicit information about
+          which digit to generate. This can lead to ambiguous samples, motivating the addition of
+          class conditioning.
+        </p>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">9</span>
+        <h2><span class="sub">Part B · 2.4</span>Adding class conditioning to the UNet</h2>
+      </div>
+      <div class="prose">
+        <p>
+          To control which digit the model generates, I extended the time-conditioned UNet to
+          also accept a class label.
+        </p>
+        <p>
+          The class is represented as a one-hot vector and passed through two additional fully
+          connected blocks. The resulting class embeddings are combined with the time embeddings
+          to modulate the UNet features:
+        </p>
+        <p class="eq">$$\text{unflatten} = c_1\cdot\text{unflatten} + t_1,\qquad \text{up1} = c_2\cdot\text{up1} + t_2$$</p>
+        <p>
+          Here, the class embeddings scale the intermediate features, while the time embeddings
+          provide additive shifts.
+        </p>
+        <p>
+          During training, I randomly remove the class conditioning 10% of the time by replacing
+          its one-hot representation with zeros. This allows the same model to learn both
+          conditional and unconditional velocity predictions, which are needed for
+          classifier-free guidance.
+        </p>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">10</span>
+        <h2><span class="sub">Part B · 2.5</span>Training the class-conditioned UNet</h2>
+      </div>
+      <div class="prose">
+        <p>
+          I trained the class-conditioned model using the same general training procedure as the
+          time-conditioned model, now including digit labels. For sampling, I increased the
+          number of integration steps to 300.
+        </p>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/partb/class_scheduler_loss.png" alt="Training loss of the class-conditioned UNet with the scheduler"><figcaption>Training loss of the class-conditioned UNet with the learning rate scheduler.</figcaption></figure>
+      </div>
+      <div class="prose" style="margin-top:36px">
+        <p>The loss starts very high, around 6, because the untrained model's velocity predictions are far off. It drops below 0.2 within the first few hundred steps and then decreases slowly to about 0.1 by the end of training.</p>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">11</span>
+        <h2><span class="sub">Part B · 2.6</span>Sampling from the class-conditioned UNet</h2>
+      </div>
+      <div class="prose">
+        <p>
+          To generate class-specific digits, I used classifier-free guidance during sampling. At
+          each time step, the model predicts a velocity conditioned on the requested digit class,
+          \(u_c\), and an unconditional velocity, \(u_u\). I combine the two predictions using:
+        </p>
+        <p class="eq">$$u = u_u + \gamma\,(u_c - u_u)$$</p>
+        <p>
+          with guidance scale \(\gamma=5.0\). I then apply 300 Euler steps to generate the final
+          images. Each figure contains four samples of every digit from 0 to 9, with one digit
+          class per row.
+        </p>
+      </div>
+
+      <div class="toy epochs screen-only" data-src="img/partb/scheduler_">
+        <p class="kicker">With the scheduler</p>
+        <div class="seg" role="group" aria-label="Epoch">
+          <button type="button" class="on" data-e="1">Epoch 1</button>
+          <button type="button" data-e="5">Epoch 5</button>
+          <button type="button" data-e="10">Epoch 10</button>
+        </div>
+        <img src="img/partb/scheduler_1.png" alt="Class-conditioned samples with the scheduler">
+      </div>
+      <div class="print-only">
+        <div class="pair single digits"><figure><img class="shot" src="img/partb/scheduler_1.png" alt="Class-conditioned samples after epoch 1"><figcaption><b>Class-conditioned samples after epoch 1.</b></figcaption></figure></div>
+        <div class="pair single digits"><figure><img class="shot" src="img/partb/scheduler_5.png" alt="Class-conditioned samples after epoch 5"><figcaption><b>After epoch 5.</b></figcaption></figure></div>
+        <div class="pair single digits"><figure><img class="shot" src="img/partb/scheduler_10.png" alt="Class-conditioned samples after epoch 10"><figcaption><b>After epoch 10.</b></figcaption></figure></div>
+      </div>
+
+      <div class="prose" style="margin-top:36px">
+        <p>After epoch 1, every row already shows the requested digit, but the strokes are rough and blotchy, and some of the 2s, 7s, 8s, and 9s are badly malformed. By epoch 5, the digits are clean and smooth, and by epoch 10 they look like real handwriting, with natural variation in slant and thickness among the four samples of each digit.</p>
+        <p>
+          Compared with the time-only model in Section 2.3, class conditioning makes generation
+          more constrained because the network receives explicit information about the desired
+          digit.
+        </p>
+        <p>
+          In these results, the class-conditioned model produces samples of the requested
+          classes, with generation quality at epoch 5 already exceeding that of the time-only
+          model at epoch 10.
+        </p>
+
+        <h3>Can we remove the learning rate scheduler?</h3>
+        <p>
+          The original training procedure uses an exponentially decaying learning rate,
+          beginning at \(10^{-2}\) and decreasing by a factor of 10 over 10 epochs.
+        </p>
+        <p>
+          A larger initial learning rate allows faster progress early in training, while smaller
+          learning rates help stabilize optimization as training approaches convergence.
+        </p>
+        <p>
+          To test whether the scheduler is necessary, I trained a second class-conditioned model
+          using a constant learning rate of \(10^{-3}\), which matches the final learning rate of
+          the scheduled experiment.
+        </p>
+        <p>
+          This smaller constant learning rate avoids the potentially unstable updates associated
+          with maintaining a learning rate of \(10^{-2}\) throughout training, while still
+          allowing the model to learn over 10 epochs.
+        </p>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/partb/class_no_scheduler_loss.png" alt="Training loss without the scheduler"><figcaption>Training loss of the class-conditioned model without a learning rate scheduler, using a constant learning rate of 1e-3.</figcaption></figure>
+      </div>
+
+      <div class="toy epochs screen-only" data-src="img/partb/no_scheduler_">
+        <p class="kicker">Without the scheduler</p>
+        <div class="seg" role="group" aria-label="Epoch">
+          <button type="button" class="on" data-e="1">Epoch 1</button>
+          <button type="button" data-e="5">Epoch 5</button>
+          <button type="button" data-e="10">Epoch 10</button>
+        </div>
+        <img src="img/partb/no_scheduler_1.png" alt="Class-conditioned samples without the scheduler">
+      </div>
+      <div class="print-only">
+        <div class="pair single digits"><figure><img class="shot" src="img/partb/no_scheduler_1.png" alt="No-scheduler samples after epoch 1"><figcaption><b>Without the scheduler, after epoch 1.</b></figcaption></figure></div>
+        <div class="pair single digits"><figure><img class="shot" src="img/partb/no_scheduler_5.png" alt="No-scheduler samples after epoch 5"><figcaption><b>After epoch 5.</b></figcaption></figure></div>
+        <div class="pair single digits"><figure><img class="shot" src="img/partb/no_scheduler_10.png" alt="No-scheduler samples after epoch 10"><figcaption><b>After epoch 10.</b></figcaption></figure></div>
+      </div>
+
+      <div class="prose" style="margin-top:36px">
+        <p>Without the scheduler, the model actually looks better early on. After epoch 1, its digits are already clean and well formed, while the scheduled model's epoch 1 digits are still rough, because the scheduled run starts at a learning rate ten times larger. Its loss curve starts lower but stays noisier throughout training. By epoch 10, both models produce clean, correct digits of similar quality, so in this setting a constant learning rate of 1e-3 is enough to replace the scheduler.</p>
+        <p class="print-only">
+          On the live page, the sampling figures have an epoch 1 / 5 / 10 toggle, the noise
+          levels in Part B 1.2 have a slider, the visual anagrams can be rotated in place, and
+          each hybrid has a Close view / Far view toggle. This PDF shows every state as a static
+          figure.
+        </p>
+      </div>
+    </section>
+
     <section class="task">
       <div class="task-head">
         <span class="task-num">12</span>
@@ -754,16 +1278,25 @@
       </div>
       <div class="prose">
         <p>
-          This project demonstrated how flow-based generative models can support both image
-          synthesis and creative editing through variations of the same sampling process. By
-          implementing Euler integration and classifier-free guidance, I explored how learned
-          velocity predictions and text conditions influence image generation.
+          I think the most interesting part of this project was seeing the same idea work at two
+          very different scales. In Part A, a large pretrained flow model could edit photos,
+          follow text prompts, and even create visual anagrams and hybrid images, all just by
+          changing how I combined its velocity predictions during sampling. In Part B, I trained a
+          much smaller version of the same idea myself, which let me see why each piece matters.
         </p>
         <p>
-          The editing experiments further illustrated the tradeoff between preserving an input
-          image and allowing semantic transformations, while visual anagrams and hybrid images
-          demonstrated how multiple text-conditioned predictions can be combined to produce more
-          complex visual effects.
+          From the editing experiments, I learned that the starting time controls the tradeoff
+          between preserving the input image and following the text prompt, and I think the
+          intermediate starting times gave the most creative results. From the single-step
+          denoisers, I saw that a model can remove familiar levels of noise, but with only an MSE
+          objective it cannot turn pure noise into a real digit. It just learns the average digit.
+        </p>
+        <p>
+          I think flow matching solves this nicely. By learning a velocity field and following it
+          in many small steps, my models turned random noise into sharp digits, and adding class
+          conditioning and classifier-free guidance made those digits both correct and clean.
+          Training everything myself on the A6000 made the ideas from Part A feel much more
+          concrete to me.
         </p>
       </div>
     </section>
@@ -830,6 +1363,35 @@
         });
       });
     });
+    var sigmas = ['0', '0.2', '0.4', '0.5', '0.6', '0.8', '1.0'];
+    var nImg = document.getElementById('noiseImg');
+    var nLabel = document.getElementById('noiseLabel');
+    sigmas.forEach(function (s) { new Image().src = 'img/partb/noise_' + s + '.png'; });
+    document.getElementById('noiseSlider').addEventListener('input', function () {
+      var s = sigmas[+this.value];
+      nImg.src = 'img/partb/noise_' + s + '.png';
+      nLabel.textContent = 'σ = ' + s;
+    });
+
+    document.querySelectorAll('.epochs').forEach(function (box) {
+      var im = box.querySelector('img');
+      box.querySelectorAll('button').forEach(function (b) {
+        new Image().src = box.dataset.src + b.dataset.e + '.png';
+        b.addEventListener('click', function () {
+          im.src = box.dataset.src + b.dataset.e + '.png';
+          box.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); });
+        });
+      });
+    });
+
+    var links = document.querySelectorAll('.partnav a');
+    var partB = document.getElementById('part-b');
+    function mark() {
+      var inB = partB.getBoundingClientRect().top < window.innerHeight * 0.4;
+      links.forEach(function (a) { a.classList.toggle('on', (a.dataset.part === 'part-b') === inB); });
+    }
+    window.addEventListener('scroll', mark, { passive: true });
+    mark();
   })();
 </script>
 </body>

@@ -13,3 +13,5 @@ __pycache__/
 *.ipynb
 *_starter_code/
 *.zip
+
+*_draft.md
