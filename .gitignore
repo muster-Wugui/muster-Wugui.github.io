@@ -12,3 +12,4 @@ __pycache__/
 *.py
 *.ipynb
 *_starter_code/
+*.zip

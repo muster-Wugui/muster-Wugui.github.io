@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CS 180 · Project 3A</title>
+<meta name="description" content="Project 3A for CS 180: flow matching with PixNerd, from one-step denoising and Euler sampling to classifier-free guidance, image editing, visual anagrams, and hybrid images.">
+<link rel="icon" href="../../assets/img/berkeley-seal.svg">
+<script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<link rel="stylesheet" href="../../assets/css/style.css">
+<style>
+  .task .prose h3 {
+    font-family: Inter, sans-serif; font-size: .82rem; font-weight: 700;
+    letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft);
+    line-height: 1.5;
+    margin: 42px 0 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .task .prose ul { margin: 0 0 18px; padding-left: 22px; }
+  .task .prose li { margin-bottom: 8px; }
+  .eq { text-align: center; margin: 4px 0 22px !important; overflow-x: auto; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 26px; }
+  .chip {
+    font: 600 11px Inter, sans-serif; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-soft); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px;
+  }
+  .prompt {
+    display: inline-block; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .86rem;
+    background: var(--bg-alt); border: 1px solid var(--line); border-radius: 8px; padding: 3px 9px;
+  }
+  .pair.single.wide { max-width: 1060px; }
+  .pair.single.mid { max-width: 640px; }
+  .pair.single.small { max-width: 380px; }
+  .pair figcaption { max-width: 70ch; }
+
+  .offsets { margin: 36px 0 0 80px; overflow-x: auto; }
+  .offsets table { border-collapse: collapse; width: 100%; max-width: 640px; font-size: .9rem; }
+  .offsets caption {
+    caption-side: top; text-align: left; font-size: 11px; font-weight: 600;
+    letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); padding-bottom: 12px;
+  }
+  .offsets th, .offsets td { padding: 9px 16px 9px 0; border-bottom: 1px solid var(--line); text-align: left; }
+  .offsets th {
+    font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-soft); border-bottom-color: var(--ink-soft);
+  }
+  .offsets td + td { font-variant-numeric: tabular-nums; color: var(--ink-soft); }
+  .offsets tr:last-child td { border-bottom: none; }
+
+  .toy {
+    margin: 40px auto 0; max-width: 560px; text-align: center;
+    padding: 22px 22px 18px; border: 1px dashed var(--line); border-radius: var(--radius);
+  }
+  .toy .kicker {
+    font: 700 11px Inter, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft);
+    margin: 0 0 14px;
+  }
+  .toy img { display: block; margin: 0 auto; border-radius: var(--radius); box-shadow: var(--shadow); }
+  .toy .readout { font: 600 13px Inter, sans-serif; color: var(--ink); margin: 14px 0 6px; font-variant-numeric: tabular-nums; }
+  .controls { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 10px; }
+  .controls input[type=range] { flex: 1; max-width: 360px; accent-color: var(--accent); }
+  .btn {
+    font: 600 12px Inter, sans-serif; letter-spacing: .06em; color: var(--ink);
+    background: none; border: 1px solid var(--line); border-radius: 999px; padding: 8px 16px; cursor: pointer;
+  }
+  .btn:hover { border-color: var(--ink-soft); }
+  .seg { display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 999px; }
+  .seg button {
+    font: 600 12px Inter, sans-serif; letter-spacing: .06em; color: var(--ink-soft);
+    background: none; border: 0; border-radius: 999px; padding: 7px 16px; cursor: pointer;
+  }
+  .seg button.on { background: var(--ink); color: var(--bg); }
+
+  .traj img { width: 100%; max-width: 420px; }
+  .spin img { width: 100%; max-width: 400px; transition: transform .9s cubic-bezier(.5,0,.2,1); }
+  .spin.flipped img { transform: rotate(180deg); }
+  .stage { display: flex; align-items: center; justify-content: center; min-height: 440px; }
+  .stage img { width: 420px; max-width: 100%; transition: width .45s cubic-bezier(.2,.7,.3,1); }
+  .hyb.far .stage img { width: 64px; }
+  .toys { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; margin-top: 40px; }
+  .toys .toy { margin: 0; max-width: none; }
+
+  .static-pair { display: flex; align-items: flex-end; justify-content: center; gap: 28px; margin: 40px auto 0; }
+  .static-pair figure { text-align: center; }
+  .static-pair .big { width: 360px; max-width: 100%; }
+  .static-pair .tiny { width: 64px; height: 64px; }
+  .print-only { display: none; }
+
+  @media (max-width: 720px) {
+    .offsets { margin-left: 0; }
+    .toys { grid-template-columns: 1fr; }
+    .stage { min-height: 320px; }
+  }
+  @media print {
+    .screen-only { display: none !important; }
+    .print-only { display: block; }
+    .static-pair.print-only { display: flex; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="mark" href="/">
+      <img src="../../assets/img/berkeley-seal.svg" alt="UC Berkeley seal">
+      <span>Coursework</span>
+    </a>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/cs180/" class="active">CS 180</a>
+      <button class="theme-toggle" type="button" aria-label="Switch color theme"></button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+
+    <div class="hero compact">
+      <p class="eyebrow">CS 180 <span class="dot">·</span> Project 3A</p>
+      <h1>Exploring the Power of Flow Models</h1>
+      <p class="lead">
+        In this project, I explored image generation and editing using PixNerd-XXL, a pretrained
+        flow-based generative model. I implemented the core components of flow matching
+        inference, including linear interpolation, one-step denoising, Euler sampling, and
+        classifier-free guidance (CFG). I then applied these techniques to image-to-image
+        editing, text-guided transformations, visual anagrams, and hybrid images.
+      </p>
+      <p class="lead" style="margin-top:14px">
+        The main goal was to understand how a learned velocity field can transform random noise
+        into coherent images, and how different sampling and guidance strategies affect the
+        generated results.
+      </p>
+      <div class="chips">
+        <span class="chip">PixNerd-XXL-P16-T2I</span>
+        <span class="chip">512 × 512</span>
+        <span class="chip">Euler step h = 0.02</span>
+        <span class="chip">CFG w = 7</span>
+        <span class="chip">Seed 180</span>
+      </div>
+      <div class="rule"></div>
+    </div>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">1</span>
+        <h2><span class="sub">Part 1.1</span>Constructing noisy training inputs</h2>
+      </div>
+      <div class="prose">
+        <p>
+          Flow matching constructs intermediate images by linearly interpolating between
+          Gaussian noise and a clean image:
+        </p>
+        <p class="eq">$$x_t = (1-t)\,\epsilon + t\,x_1$$</p>
+        <p>
+          where \(x_1\) is the original image, \(\epsilon\) is Gaussian noise, and
+          \(t\in[0,1]\) determines the interpolation between them. My own image for Section 1 is
+          a night photo of Levi's Stadium with fireworks over the scoreboard. I sampled a single
+          Gaussian noise tensor and used it to generate noisy versions of the image at
+          \(t=0.25\), \(0.50\), and \(0.75\).
+        </p>
+      </div>
+      <div class="pair single wide">
+        <figure>
+          <img class="shot" src="img/p11_inputs.jpg" alt="Levi's Stadium original and noisy versions at t = 0.25, 0.50, 0.75">
+          <figcaption><b>Original image and three noisy inputs,</b> all built from the same noise tensor.</figcaption>
+        </figure>
+      </div>
+      <div class="prose" style="margin-top:36px">
+        <p>
+          As \(t\) increases, the original image becomes progressively more recognizable. At
+          \(t=0.25\), Gaussian noise dominates the image and only the bright scoreboard and stadium
+          lights peek through, while at \(t=0.75\), much more of the original structure and color
+          are preserved. This illustrates how flow matching defines a continuous path between
+          noise and clean images.
+        </p>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">2</span>
+        <h2><span class="sub">Part 1.2</span>Classical denoising</h2>
+      </div>
+      <div class="prose">
+        <p>
+          I first applied Gaussian blur as a classical denoising baseline. Since the clean image
+          is scaled by \(t\) during interpolation, I divided the noisy input by \(t\) before
+          applying the blur:
+        </p>
+        <p class="eq">$$\hat{x}_1 = G_\sigma\!\left(\frac{x_t}{t}\right)$$</p>
+        <p>
+          For each noise level, I compared blur strengths \(\sigma\in\{1, 2, 4, 8, 16\}\) and
+          selected the one with the lowest mean squared error relative to the original image.
+          The best choices were \(\sigma=8\) at \(t=0.25\), \(\sigma=4\) at \(t=0.50\), and
+          \(\sigma=1\) at \(t=0.75\).
+        </p>
+      </div>
+      <div class="pair single mid">
+        <figure><img class="shot" src="img/p12_blur_025.jpg" alt="Noisy input and best Gaussian blur at t = 0.25"><figcaption><b>t = 0.25</b> — noisy input and the best blur (σ = 8).</figcaption></figure>
+      </div>
+      <div class="pair single mid">
+        <figure><img class="shot" src="img/p12_blur_050.jpg" alt="Noisy input and best Gaussian blur at t = 0.50"><figcaption><b>t = 0.50</b> — noisy input and the best blur (σ = 4).</figcaption></figure>
+      </div>
+      <div class="pair single mid">
+        <figure><img class="shot" src="img/p12_blur_075.jpg" alt="Noisy input and best Gaussian blur at t = 0.75"><figcaption><b>t = 0.75</b> — noisy input and the best blur (σ = 1).</figcaption></figure>
+      </div>
+      <div class="prose" style="margin-top:36px">
+        <p>
+          Gaussian blur reduces noise by averaging nearby pixels, but it also removes
+          high-frequency image details. This tradeoff is especially noticeable at smaller \(t\),
+          where the noise is stronger: at \(t=0.25\) the best result is just colored blobs where
+          the fireworks and scoreboard used to be. At larger \(t\), more of the original image can
+          be recovered without excessive smoothing, which is why the best \(\sigma\) shrinks as
+          \(t\) grows.
+        </p>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">3</span>
+        <h2><span class="sub">Part 1.3</span>One-step denoising</h2>
+      </div>
+      <div class="prose">
+        <p>
+          Next, I used the pretrained flow model to predict the velocity needed to move from a
+          noisy image toward the clean image. Instead of applying a conventional image filter,
+          the model estimates the direction of the denoising process:
+        </p>
+        <p class="eq">$$\hat{x}_1 = x_t + (1-t)\,v_\theta(x_t, t, c)$$</p>
+        <p>
+          I used the text condition <span class="prompt">"a high quality photo"</span> and applied
+          one-step denoising to the same three noisy inputs.
+        </p>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/p13_onestep_025.jpg" alt="Original, noisy, and one-step estimate at t = 0.25"><figcaption><b>t = 0.25</b> — original, noisy input, one-step estimate.</figcaption></figure>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/p13_onestep_050.jpg" alt="Original, noisy, and one-step estimate at t = 0.50"><figcaption><b>t = 0.50</b> — original, noisy input, one-step estimate.</figcaption></figure>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/p13_onestep_075.jpg" alt="Original, noisy, and one-step estimate at t = 0.75"><figcaption><b>t = 0.75</b> — original, noisy input, one-step estimate.</figcaption></figure>
+      </div>
+      <div class="prose" style="margin-top:36px">
+        <p>
+          Unlike Gaussian blur, the learned model can use image and semantic information to
+          reconstruct plausible features rather than simply smoothing pixels. However, a single
+          velocity prediction is only an approximation of the full denoising trajectory, so
+          reconstruction errors may remain. The most fun example is at \(t=0.25\): the model could
+          not see the fireworks through the noise, so it turned the two red streaks into two
+          people floating in the sky. At \(t=0.50\) and \(0.75\) the estimate is close to the
+          original, with only slightly soft text on the scoreboard.
+        </p>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">4</span>
+        <h2><span class="sub">Part 1.4</span>Visualizing velocity</h2>
+      </div>
+      <div class="prose">
+        <p>
+          To better understand the learned velocity field, I compared the model's predicted
+          update with the ground-truth update. The ground-truth velocity is
+        </p>
+        <p class="eq">$$v_{\mathrm{gt}} = x_1 - \epsilon$$</p>
+        <p>
+          The predicted and ground-truth updates toward the clean endpoint are
+          \((1-t)\,v_\theta(x_t,t,c)\) and \((1-t)\,v_{\mathrm{gt}}\), respectively. I visualized
+          both updates and computed a per-pixel RMS error map across RGB to highlight their
+          differences. All updates share one symmetric color scale with zero at middle gray, and
+          all three error maps share the same limits, so the times can be compared directly.
+        </p>
+      </div>
+      <div class="pair single small">
+        <figure><img class="shot" src="img/p14_original.jpg" alt="Original Levi's Stadium image"><figcaption><b>Original image.</b></figcaption></figure>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/p14_vel_025.jpg" alt="Velocity diagnostics at t = 0.25"><figcaption><b>t = 0.25</b> — noisy image, predicted update, ground-truth update, error.</figcaption></figure>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/p14_vel_050.jpg" alt="Velocity diagnostics at t = 0.50"><figcaption><b>t = 0.50</b></figcaption></figure>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/p14_vel_075.jpg" alt="Velocity diagnostics at t = 0.75"><figcaption><b>t = 0.75</b></figcaption></figure>
+      </div>
+      <div class="prose" style="margin-top:36px">
+        <p>
+          The error maps illustrate where the model's predicted direction differs from the exact
+          interpolation trajectory. These differences arise because the model learns a general
+          velocity field across many possible images rather than recovering the exact noise and
+          image pair used in this experiment. In my maps, the largest errors are at
+          \(t=0.25\), along fine, high-contrast details: the firework sparks, the scoreboard
+          text and player, the Pepsi logo, and the edges of the seat rows. The smooth night sky
+          has almost no error, and the whole map fades as \(t\) increases, because there is less
+          left to guess.
+        </p>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">5</span>
+        <h2><span class="sub">Part 1.5</span>Iterative denoising with Euler sampling</h2>
+      </div>
+      <div class="prose">
+        <p>
+          One-step denoising assumes that the predicted velocity remains constant until the
+          clean endpoint. In practice, the velocity changes along the sampling trajectory. I
+          implemented Euler integration to repeatedly update the image using
+        </p>
+        <p class="eq">$$x_{t+h} = x_t + h\,v_\theta(x_t, t, c)$$</p>
+        <p>
+          Using a step size of \(h=0.02\) (with the last step shortened to land exactly on
+          \(t=1\)), I performed 25 updates starting from the noisy image at \(t=0.50\).
+        </p>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/p15_traj.jpg" alt="Euler trajectory at t = 0.50, 0.60, 0.70, 0.80, 0.90, 1.00"><figcaption><b>Euler trajectory:</b> the initial state, every fifth update, and the final image.</figcaption></figure>
+      </div>
+
+      <div class="toy traj screen-only">
+        <p class="kicker">Replay the denoising</p>
+        <img id="trajImg" src="img/traj/00.jpg" alt="Euler denoising frame">
+        <p class="readout" id="trajLabel">t = 0.50 · step 0 of 25</p>
+        <div class="controls">
+          <button class="btn" type="button" id="trajPlay">▶ Play</button>
+          <input type="range" id="trajSlider" min="0" max="25" value="0" aria-label="Euler step">
+        </div>
+      </div>
+
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/p15_compare.jpg" alt="Original, Gaussian blur, one-step, and Euler results at t = 0.50"><figcaption><b>Starting from t = 0.50:</b> original, Gaussian blur, one-step denoising, Euler denoising.</figcaption></figure>
+      </div>
+
+      <div class="offsets">
+        <table>
+          <caption>Mean squared error vs. the original (t = 0.50 input)</caption>
+          <thead><tr><th>Method</th><th>MSE</th></tr></thead>
+          <tbody>
+            <tr><td>Gaussian blur (σ = 4)</td><td>0.0334</td></tr>
+            <tr><td>One-step denoising</td><td>0.0083</td></tr>
+            <tr><td>Euler, 25 steps</td><td>0.0099</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="prose" style="margin-top:32px">
+        <p>
+          Iterative sampling allows the model to recompute its velocity prediction after every
+          step, adapting the denoising direction as the image changes. Compared with a single
+          extrapolation, this follows the learned flow more closely and produces a more coherent
+          final reconstruction.
+        </p>
+        <p>
+          On my image, both model-based methods beat the blur by a wide margin. Visually, Euler is
+          the best: the firework sparks, the "STADIUM" letters, and the seats are crisp, while the
+          one-step result is slightly soft. Interestingly, one-step has the lower MSE. My guess is
+          that one step predicts something close to an average of possible clean images, which MSE
+          rewards, while Euler commits to sharp, realistic details that do not exactly match the
+          original pixels.
+        </p>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">6</span>
+        <h2><span class="sub">Part 1.6</span>Generating images from noise</h2>
+      </div>
+      <div class="prose">
+        <p>
+          After implementing Euler sampling, I used the same procedure to generate images
+          directly from Gaussian noise. Starting at \(t=0\), I integrated the learned velocity
+          field until \(t=1\) (50 updates), using the prompt
+          <span class="prompt">"a high quality photo"</span>. I generated five images using
+          seeds 180 to 184.
+        </p>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/p16_samples.jpg" alt="Five samples without CFG"><figcaption><b>Five samples without CFG</b> from "a high quality photo."</figcaption></figure>
+      </div>
+      <div class="prose" style="margin-top:36px">
+        <p>
+          Although all samples use the same text prompt, their contents vary because each
+          sampling trajectory begins from a different noise tensor. Still, there is a very strong
+          <b>subject bias</b>: all five images are portraits of a person, posed head-and-shoulders
+          against a plain studio background. "A high quality photo" seems to mean "a portrait" to
+          this model. The quality is uneven. Seeds 182 and 184 are believable faces, but seed 180
+          has a blank, featureless face, seed 183 has a melted, distorted face, and seed 181 has
+          odd, blotchy skin on the body.
+        </p>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">7</span>
+        <h2><span class="sub">Part 2.1</span>Classifier-free guidance</h2>
+      </div>
+      <div class="prose">
+        <p>
+          Classifier-free guidance (CFG) strengthens the effect of text conditioning by combining
+          conditional and unconditional velocity predictions:
+        </p>
+        <p class="eq">$$v_{\mathrm{CFG}} = v_c + w\,(v_c - v_u)$$</p>
+        <p>
+          where \(v_c\) is the velocity predicted with the text prompt, \(v_u\) is the prediction
+          with an empty prompt, and \(w\) controls guidance strength. I implemented CFG with
+          \(w=7\) and generated five images using the same initial noise tensors as Part 1.6, so
+          each pair below differs only by guidance. (As a check, \(w=0\) reproduces the plain
+          conditional prediction exactly.)
+        </p>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/p16_samples.jpg" alt="Five samples without CFG"><figcaption><b>Without CFG</b> (seeds 180–184).</figcaption></figure>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/p21_cfg.jpg" alt="Five samples with CFG w = 7"><figcaption><b>With CFG, w = 7</b> (same seeds, same starting noise).</figcaption></figure>
+      </div>
+      <div class="prose" style="margin-top:36px">
+        <p>
+          CFG encourages the sampling trajectory to follow the text condition more strongly. In
+          my results, every CFG sample is a clean, sharp studio headshot: the faceless head of
+          seed 180 and the melted face of seed 183 become normal faces, and skin, eyes, and hair
+          are much more detailed. Each pair keeps some layout from its shared noise, for example
+          seed 182 keeps the hand raised to the cheek. The cost is diversity: all five CFG images
+          become centered, front-facing portraits with similar lighting and darker, high-contrast
+          backgrounds, so CFG made the portrait bias even stronger.
+        </p>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">8</span>
+        <h2><span class="sub">Part 3.1</span>Image-to-image editing</h2>
+      </div>
+      <div class="prose">
+        <p>
+          Image-to-image editing combines the forward noising process with guided denoising. I
+          first interpolated an existing image with Gaussian noise at a selected starting time,
+          then used the pretrained flow model (with CFG, \(w=7\)) to generate an edited result. I
+          used the starting times
+        </p>
+        <p class="eq">$$t_{\text{start}}\in\{0.02,\ 0.04,\ 0.06,\ 0.10,\ 0.14,\ 0.25,\ 0.50\}$$</p>
+        <p>
+          Because smaller starting times introduce more noise, they allow the model to make
+          larger changes. Higher starting times preserve more information about the original
+          image.
+        </p>
+
+        <h3>Campanile</h3>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/p31_campanile.jpg" alt="Campanile edits at seven starting times"><figcaption><b>Campanile</b> and its edits with "a high quality photo."</figcaption></figure>
+      </div>
+      <div class="prose" style="margin-top:36px">
+        <p>
+          The starting time controls the balance between creative reconstruction and preserving
+          the original image. At \(t=0.02\) the tower becomes a smooth white pillar in front of a
+          blurry blue background, and from \(0.04\) to \(0.14\) it is a plain white obelisk in a
+          blue sky. The real Campanile, with its belfry windows, appears at \(0.25\), and at
+          \(0.50\) even the clock is back.
+        </p>
+
+        <h3>Editing my own images</h3>
+        <p>
+          I applied the same editing procedure to two of my own test images: a photograph of
+          Levi's Stadium and a cartoon dinosaur.
+        </p>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/p31_levis.jpg" alt="Levi's Stadium edits at seven starting times"><figcaption><b>Levi's Stadium</b> and its seven edits.</figcaption></figure>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/p31_dino.jpg" alt="Cartoon dinosaur edits at seven starting times"><figcaption><b>Cartoon dinosaur</b> and its seven edits.</figcaption></figure>
+      </div>
+      <div class="prose" style="margin-top:36px">
+        <p>
+          These examples compare a photograph full of architecture, lighting, and fine details
+          with a simple illustration with large uniform regions. The portrait bias from Part 1.6
+          shows up again: at \(t=0.02\), the stadium becomes a smiling woman and the dinosaur
+          becomes a framed photo of a man. In between, the model keeps only the colors and layout.
+          The stadium's dark blue and red turn into hands holding a laptop and a phone, and the
+          dinosaur's green turns into green geometric shapes. The stadium becomes recognizable
+          again around \(0.14\) to \(0.25\) (where the fireworks once more turn into floating
+          people), and the dinosaur is back as early as \(0.10\), because its big flat shapes
+          survive the noise much better than the stadium's small details.
+        </p>
+
+        <h3>Editing a web image and hand-drawn images</h3>
+        <p>
+          I also edited a downloaded image, a cubist-style painting of a guitar, and two of my own
+          drawings, a triangle chicken and a flower, to see how the model handles inputs that
+          differ from natural photographs.
+        </p>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/p31_web.jpg" alt="Web image edits at seven starting times"><figcaption><b>Web image:</b> a cubist guitar painting and its seven edits.</figcaption></figure>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/p31_draw1.jpg" alt="Hand-drawn chicken edits at seven starting times"><figcaption><b>Drawing 1:</b> a triangle chicken and its seven edits.</figcaption></figure>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/p31_draw2.jpg" alt="Hand-drawn flower edits at seven starting times"><figcaption><b>Drawing 2:</b> a flower and its seven edits.</figcaption></figure>
+      </div>
+      <div class="prose" style="margin-top:36px">
+        <p>
+          These experiments show how the model uses learned image priors to interpret sparse or
+          stylized visual information. At smaller starting times, the model introduces new
+          semantic content, while at larger starting times it is more constrained by the
+          original shapes and composition.
+        </p>
+        <ul>
+          <li><b>Guitar painting:</b> the early edits are realistic photos (a man posing, hands at a computer, a foot by a bookshelf). The painting's bold outlines and color blocks return at \(0.10\), and from \(0.25\) on it is a close, slightly smoother copy.</li>
+          <li><b>Chicken:</b> a line drawing is almost all white paper, so at low starting times the model sees "white" and makes product shots of white boxes and signs with mirrored letters. The triangle body and beak appear at \(0.14\), the legs at \(0.25\), and the red comb only at \(0.50\).</li>
+          <li><b>Flower:</b> the same happens with white cards and boxes, plus a pencil sketch of a jacket at \(0.14\). The flower appears at \(0.25\) with duller colors and is faithful at \(0.50\).</li>
+        </ul>
+        <p>
+          Thin lines are mostly high-frequency information, so they disappear first under noise.
+          That is why the drawings need much larger starting times than the painting or the
+          photos to come back.
+        </p>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">9</span>
+        <h2><span class="sub">Part 3.2</span>Text-guided image editing</h2>
+      </div>
+      <div class="prose">
+        <p>
+          In this section, I extended image-to-image editing by replacing the generic photo
+          condition with prompts that describe specific target images. Rather than simply
+          reconstructing the input, the model is encouraged to reinterpret its contents
+          according to the text prompt.
+        </p>
+
+        <h3>Campanile → Rocket</h3>
+        <p>Prompt: <span class="prompt">"a photograph of a futuristic rocket on a launch pad"</span></p>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/p32_campanile.jpg" alt="Campanile text-guided edits into a rocket"><figcaption><b>Campanile → rocket</b> at the seven starting times.</figcaption></figure>
+      </div>
+      <div class="prose" style="margin-top:36px">
+        <p>
+          I chose this prompt because the Campanile's tall, narrow structure resembles a rocket.
+          From \(0.02\) to \(0.06\), the model draws a full white rocket with launch towers and
+          gantries. At \(0.10\) and \(0.14\), the rocket stands exactly where the tower was, with
+          the Campanile's tree line still at the bottom. At \(0.25\), it is a true mix: the
+          Campanile's belfry windows sit on top of a rocket body with a glowing stripe. At
+          \(0.50\) it is the Campanile again.
+        </p>
+
+        <h3>Levi's Stadium → Roman arena</h3>
+        <p>Prompt: <span class="prompt">"a photograph of an ancient Roman gladiator arena filled with spectators"</span></p>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/p32_levis.jpg" alt="Levi's Stadium text-guided edits into a Roman arena"><figcaption><b>Levi's Stadium → Roman arena</b> at the seven starting times.</figcaption></figure>
+      </div>
+      <div class="prose" style="margin-top:36px">
+        <p>
+          I selected this prompt because a modern football stadium and a Roman Colosseum share
+          similar large-scale geometry, with spectator seating surrounding a central arena. At low
+          starting times, the model paints a complete Colosseum with crowds, horses, and
+          helmeted spectators. At \(0.10\), a gladiator stands in front of the stands. At
+          \(0.14\), the scoreboard turns into hanging red-and-white banners, and at \(0.25\) it
+          keeps the stadium layout but turns the fireworks into two figures in Roman clothes and
+          puts a knight on the screen.
+        </p>
+
+        <h3>Cartoon dinosaur → T. rex</h3>
+        <p>Prompt: <span class="prompt">"a photograph of a giant green Tyrannosaurus rex in a prehistoric jungle"</span></p>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/p32_dino.jpg" alt="Cartoon dinosaur text-guided edits into a T. rex"><figcaption><b>Cartoon dinosaur → T. rex</b> at the seven starting times.</figcaption></figure>
+      </div>
+      <div class="prose" style="margin-top:36px">
+        <p>
+          This tests whether the model can turn a simple cartoon into a photorealistic dinosaur.
+          At \(0.02\) and \(0.04\), it creates a realistic roaring T. rex in a jungle, but as a
+          photo printed inside a white frame, because it keeps the large white background. From
+          \(0.06\) to \(0.14\), the cartoon keeps its pose but gains T. rex teeth, arms, and a
+          jungle of palm trees behind it, like a sticker. From \(0.25\) on, the original cartoon
+          wins.
+        </p>
+
+        <h3>Discussion</h3>
+        <p>
+          Across these experiments, the starting time determines how strongly the model can
+          follow the text prompt relative to the original image. Lower starting times provide
+          greater freedom for semantic changes, whereas higher starting times tend to preserve
+          the original image. Intermediate starting times are the most interesting because they
+          combine recognizable elements from the input with new content from the prompt. My
+          favorite is the Campanile → rocket at \(t=0.10\) to \(0.25\), where the tower and the
+          rocket are both clearly visible. The dinosaur → T. rex at \(0.06\) is a close second.
+        </p>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">10</span>
+        <h2><span class="sub">Part 3.3</span>Visual anagrams</h2>
+      </div>
+      <div class="prose">
+        <p>
+          Visual anagrams are images that depict different subjects depending on their
+          orientation. To generate these illusions, I computed two CFG velocity predictions at
+          each sampling step: one for the upright image with prompt \(p_1\), and another for the
+          image rotated by 180 degrees with prompt \(p_2\). I rotated the second prediction back
+          to the original orientation and averaged the two:
+        </p>
+        <p class="eq">$$v_1 = \mathrm{CFG}(x_t, t, p_1),\qquad v_2 = \mathrm{flip}\big(\mathrm{CFG}(\mathrm{flip}(x_t), t, p_2)\big),\qquad v = \frac{v_1 + v_2}{2}$$</p>
+        <p>
+          The combined velocity encourages the generated image to satisfy both prompts under
+          their respective orientations.
+        </p>
+      </div>
+
+      <div class="toys screen-only">
+        <div class="toy spin" data-a="an oil painting of an old man" data-b="an oil painting of people around a campfire">
+          <p class="kicker">Anagram 1</p>
+          <img src="img/p33_anagram1_up.jpg" alt="Visual anagram: old man upright, campfire when rotated">
+          <p class="readout">"an oil painting of an old man"</p>
+          <div class="controls"><button class="btn" type="button">↻ Rotate 180°</button></div>
+        </div>
+        <div class="toy spin" data-a="a lithograph of a snowy mountain village" data-b="a lithograph of a horse">
+          <p class="kicker">Anagram 2</p>
+          <img src="img/p33_anagram2_up.jpg" alt="Visual anagram: snowy village upright, horse when rotated">
+          <p class="readout">"a lithograph of a snowy mountain village"</p>
+          <div class="controls"><button class="btn" type="button">↻ Rotate 180°</button></div>
+        </div>
+      </div>
+
+      <div class="pair single mid">
+        <figure><img class="shot" src="img/p33_anagram1.jpg" alt="Anagram 1 upright and rotated"><figcaption><b>Anagram 1.</b> Upright: <span class="prompt">"an oil painting of an old man"</span>. Rotated 180°: <span class="prompt">"an oil painting of people around a campfire"</span>.</figcaption></figure>
+      </div>
+      <div class="pair single mid">
+        <figure><img class="shot" src="img/p33_anagram2.jpg" alt="Anagram 2 upright and rotated"><figcaption><b>Anagram 2.</b> Upright: <span class="prompt">"a lithograph of a snowy mountain village"</span>. Rotated 180°: <span class="prompt">"a lithograph of a horse"</span>.</figcaption></figure>
+      </div>
+
+      <div class="prose" style="margin-top:36px">
+        <p>
+          The challenge is that both interpretations must share the same pixels, so the model has
+          to find structures that work both ways. In the first illusion, the old man's glowing
+          face becomes the campfire when flipped, and his dark coat and shoulders become the
+          people sitting around it. Both readings work well, although the old man's face is a bit
+          distorted because an upside-down face from the campfire scene is hidden in his chin. In
+          the second illusion, the mountains and houses are clear upright, and the horse's head
+          and body are clear when flipped. The weak spot is that the horse's head is also visible
+          at the bottom of the village, so the upright view feels a little busy.
+        </p>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">11</span>
+        <h2><span class="sub">Part 3.4</span>Hybrid images</h2>
+      </div>
+      <div class="prose">
+        <p>
+          Hybrid images combine two different visual interpretations at different spatial
+          frequencies. Low-frequency information dominates when an image is viewed from far away
+          or reduced in size, while high-frequency details become more noticeable up close. I
+          adapted this idea to flow sampling by combining the low-frequency part of one
+          text-conditioned CFG velocity with the high-frequency part of another:
+        </p>
+        <p class="eq">$$v = f_{\mathrm{lowpass}}(v_1) + \big(v_2 - f_{\mathrm{lowpass}}(v_2)\big)$$</p>
+        <p>
+          The low-pass filter is a Gaussian blur with kernel size 265 and \(\sigma=16\), and the
+          combined velocity is used in every Euler step.
+        </p>
+
+        <h3>Hybrid 1: Skull and waterfall</h3>
+        <p>
+          Far (low frequency): <span class="prompt">"a lithograph of a skull"</span><br>
+          Close (high frequency): <span class="prompt">"a lithograph of a waterfall"</span>
+        </p>
+      </div>
+
+      <div class="toy hyb screen-only">
+        <div class="seg" role="group" aria-label="Viewing distance">
+          <button type="button" class="on" data-v="close">Close view</button>
+          <button type="button" data-v="far">Far view</button>
+        </div>
+        <div class="stage"><img src="img/p34_skull.jpg" alt="Hybrid of a skull and a waterfall"></div>
+      </div>
+      <div class="static-pair print-only">
+        <figure><img class="big" src="img/p34_skull.jpg" alt="Skull and waterfall hybrid, full size"><figcaption>Full size (close)</figcaption></figure>
+        <figure><img class="tiny" src="img/p34_skull_small.png" alt="Skull and waterfall hybrid, reduced"><figcaption>64 × 64 (far)</figcaption></figure>
+      </div>
+
+      <div class="prose" style="margin-top:36px">
+        <p>
+          Up close, the waterfall clearly dominates: falling water, a cliff, and trees. From far
+          away, the skull is only faintly there: it mostly shows up as the overall shape, since the
+          whole picture sits inside a rounded, head-like outline that narrows toward the bottom. The
+          facial features of the skull did not survive, so this one is a weak hybrid, and more runs
+          with other seeds would probably give a stronger skull.
+        </p>
+
+        <h3>Hybrid 2: Cat and forest</h3>
+        <p>
+          Far (low frequency): <span class="prompt">"a lithograph of a cat"</span><br>
+          Close (high frequency): <span class="prompt">"a lithograph of a forest"</span>
+        </p>
+      </div>
+
+      <div class="toy hyb screen-only">
+        <div class="seg" role="group" aria-label="Viewing distance">
+          <button type="button" class="on" data-v="close">Close view</button>
+          <button type="button" data-v="far">Far view</button>
+        </div>
+        <div class="stage"><img src="img/p34_cat.jpg" alt="Hybrid of a cat and a forest"></div>
+      </div>
+      <div class="static-pair print-only">
+        <figure><img class="big" src="img/p34_cat.jpg" alt="Cat and forest hybrid, full size"><figcaption>Full size (close)</figcaption></figure>
+        <figure><img class="tiny" src="img/p34_cat_small.png" alt="Cat and forest hybrid, reduced"><figcaption>64 × 64 (far)</figcaption></figure>
+      </div>
+
+      <div class="prose" style="margin-top:36px">
+        <p>
+          Up close, it is a detailed forest of tall trees. From far away, the two round tree
+          crowns at the top read as a cat's ears, and the tight group of trunks forms the cat's
+          head and body, so the cat appears as a silhouette. In both hybrids the close-up subject
+          is much stronger than the distant one, because the low-pass part only controls large
+          shapes and tones, not details.
+        </p>
+        <p class="print-only">
+          On the live page, each hybrid has a Close view / Far view toggle that shrinks it to 64
+          pixels, and the visual anagrams can be rotated in place. In this PDF, the far view is
+          shown as the 64 × 64 image next to each hybrid.
+        </p>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">12</span>
+        <h2><span class="sub">Wrapping up</span>Conclusion</h2>
+      </div>
+      <div class="prose">
+        <p>
+          This project demonstrated how flow-based generative models can support both image
+          synthesis and creative editing through variations of the same sampling process. By
+          implementing Euler integration and classifier-free guidance, I explored how learned
+          velocity predictions and text conditions influence image generation.
+        </p>
+        <p>
+          The editing experiments further illustrated the tradeoff between preserving an input
+          image and allowing semantic transformations, while visual anagrams and hybrid images
+          demonstrated how multiple text-conditioned predictions can be combined to produce more
+          complex visual effects.
+        </p>
+      </div>
+    </section>
+
+    <a class="backlink" href="/cs180/">← All CS 180 projects</a>
+
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>UC Berkeley coursework</span>
+    <span class="spacer"><a href="/cs180/">CS 180</a></span>
+  </div>
+</footer>
+
+<script src="../../assets/js/site.js"></script>
+<script src="../../assets/js/theme.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'\\(',right:'\\)',display:false}]})"></script>
+<script>
+  (function () {
+    var img = document.getElementById('trajImg');
+    var slider = document.getElementById('trajSlider');
+    var label = document.getElementById('trajLabel');
+    var play = document.getElementById('trajPlay');
+    var frames = [], timer = null;
+    for (var i = 0; i <= 25; i++) {
+      var f = new Image();
+      f.src = 'img/traj/' + (i < 10 ? '0' : '') + i + '.jpg';
+      frames.push(f.src);
+    }
+    function show(i) {
+      img.src = frames[i];
+      slider.value = i;
+      label.textContent = 't = ' + (0.5 + 0.02 * i).toFixed(2) + ' · step ' + i + ' of 25';
+    }
+    slider.addEventListener('input', function () { stop(); show(+slider.value); });
+    function stop() { clearInterval(timer); timer = null; play.textContent = '▶ Play'; }
+    play.addEventListener('click', function () {
+      if (timer) return stop();
+      var i = +slider.value >= 25 ? 0 : +slider.value;
+      play.textContent = '❚❚ Pause';
+      show(i);
+      timer = setInterval(function () {
+        if (i >= 25) return stop();
+        show(++i);
+      }, 160);
+    });
+
+    document.querySelectorAll('.spin').forEach(function (card) {
+      var out = card.querySelector('.readout');
+      card.querySelector('button').addEventListener('click', function () {
+        var flipped = card.classList.toggle('flipped');
+        out.textContent = '"' + (flipped ? card.dataset.b : card.dataset.a) + '"';
+      });
+    });
+
+    document.querySelectorAll('.hyb').forEach(function (h) {
+      h.querySelectorAll('.seg button').forEach(function (b) {
+        b.addEventListener('click', function () {
+          h.classList.toggle('far', b.dataset.v === 'far');
+          h.querySelectorAll('.seg button').forEach(function (x) { x.classList.toggle('on', x === b); });
+        });
+      });
+    });
+  })();
+</script>
+</body>
+</html>
