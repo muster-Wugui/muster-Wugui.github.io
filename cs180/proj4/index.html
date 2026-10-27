@@ -93,20 +93,20 @@
         <p>
           I took each set from one spot and rotated the camera between shots, so the center of
           projection stayed as fixed as I could keep it. I also left a lot of overlap between
-          neighboring views. The first set looks across the apartments outside my window, the
-          second follows a long hallway, and the third turns across a garden walkway. All three
+          neighboring views. The first set looks north from Etcheverry Hall, the second follows
+          a long hallway, and the third looks south from Etcheverry Hall. All three
           have strong edges and details that made it easier to pick reliable correspondences.
         </p>
       </div>
 
       <div class="pair single wide">
-        <figure><img class="shot" src="img/apartment_sources.jpg" alt="Three overlapping apartment views"><figcaption><b>Apartment set.</b> Left, middle, and right views from one camera position.</figcaption></figure>
+        <figure><img class="shot" src="img/apartment_sources.jpg" alt="Three overlapping views from Etcheverry Hall North"><figcaption><b>Etcheverry Hall North.</b> Left, middle, and right views from one camera position.</figcaption></figure>
       </div>
       <div class="pair single wide">
         <figure><img class="shot" src="img/hallway_sources.jpg" alt="Three overlapping hallway views"><figcaption><b>Hallway set.</b> The doors, ceiling panels, and posters give me lots of points to match.</figcaption></figure>
       </div>
       <div class="pair single wide">
-        <figure><img class="shot" src="img/garden_sources.jpg" alt="Three overlapping garden walkway views"><figcaption><b>Garden set.</b> I rotated from the stairs on the left to the building on the right.</figcaption></figure>
+        <figure><img class="shot" src="img/garden_sources.jpg" alt="Three overlapping views from Etcheverry Hall South"><figcaption><b>Etcheverry Hall South.</b> I rotated from the stairs on the left to the building on the right.</figcaption></figure>
       </div>
     </section>
 
@@ -124,16 +124,75 @@
           overdetermined system is less sensitive to a slightly imperfect click.
         </p>
         <p>
-          For one match ((x,y)ightarrow(u,v)), I set (h_{33}=1) and add these two rows:
+          A homography maps a 2D point in one image to the matching point in another image. I
+          write the points in homogeneous coordinates as
+        </p>
+        <p class="eq">
+          p = [x, y, 1]<sup>T</sup>, &nbsp; p' = [u, v, 1]<sup>T</sup>, &nbsp; p' &sim; Hp
+        </p>
+        <p>
+          The &sim; symbol means the two homogeneous vectors can differ by a nonzero scale. If I
+          expand the matrix multiplication, the unknown scale is the third coordinate of
+          <code>Hp</code>:
+        </p>
+        <p class="eq">
+          s[u, v, 1]<sup>T</sup> =
+          [h<sub>11</sub>x + h<sub>12</sub>y + h<sub>13</sub>,
+          h<sub>21</sub>x + h<sub>22</sub>y + h<sub>23</sub>,
+          h<sub>31</sub>x + h<sub>32</sub>y + h<sub>33</sub>]<sup>T</sup>
+        </p>
+        <p class="eq">
+          u =
+          <span style="white-space:nowrap">(h<sub>11</sub>x + h<sub>12</sub>y + h<sub>13</sub>)</span>
+          /
+          <span style="white-space:nowrap">(h<sub>31</sub>x + h<sub>32</sub>y + h<sub>33</sub>)</span>
+          <br>
+          v =
+          <span style="white-space:nowrap">(h<sub>21</sub>x + h<sub>22</sub>y + h<sub>23</sub>)</span>
+          /
+          <span style="white-space:nowrap">(h<sub>31</sub>x + h<sub>32</sub>y + h<sub>33</sub>)</span>
+        </p>
+        <p>
+          A homography is unchanged if every entry is multiplied by the same scale, so it has
+          eight independent unknowns instead of nine. I fix the scale by setting
+          h<sub>33</sub> = 1 and collect the other entries into
+          <code>h = [h11, h12, h13, h21, h22, h23, h31, h32]<sup>T</sup></code>.
+          Multiplying through by each denominator turns the two rational equations into two
+          equations that are linear in <code>h</code>:
+        </p>
+        <p class="eq">
+          xh<sub>11</sub> + yh<sub>12</sub> + h<sub>13</sub>
+          - ux h<sub>31</sub> - uy h<sub>32</sub> = u
+          <br>
+          xh<sub>21</sub> + yh<sub>22</sub> + h<sub>23</sub>
+          - vx h<sub>31</sub> - vy h<sub>32</sub> = v
+        </p>
+        <p>
+          That gives the following two rows for one correspondence
+          <code>(x, y) &rarr; (u, v)</code>:
         </p>
         <p class="eq">
           [x &nbsp; y &nbsp; 1 &nbsp; 0 &nbsp; 0 &nbsp; 0 &nbsp; -ux &nbsp; -uy]h = u<br>
           [0 &nbsp; 0 &nbsp; 0 &nbsp; x &nbsp; y &nbsp; 1 &nbsp; -vx &nbsp; -vy]h = v
         </p>
         <p>
-          Stacking every match gives (Ah=b). I solve it with
-          <code>np.linalg.lstsq</code>, append the final 1, and reshape the result into (H).
-          I did not use <code>cv2.findHomography</code> or another homography helper.
+          With <code>n</code> correspondences, stacking these rows gives a
+          <code>2n &times; 8</code> matrix <code>A</code> and a <code>2n</code>-entry vector
+          <code>b</code>. Four point pairs give exactly eight equations, but any click error can
+          move the answer a lot. With more than four pairs, I solve the overdetermined system by
+          minimizing the total squared equation error:
+        </p>
+        <p class="eq">
+          h* = arg min<sub>h</sub> ||Ah - b||<sub>2</sub><sup>2</sup>
+          &nbsp;&nbsp; and therefore &nbsp;&nbsp;
+          A<sup>T</sup>Ah* = A<sup>T</sup>b
+        </p>
+        <p>
+          I use <code>np.linalg.lstsq</code> instead of explicitly computing the inverse of
+          <code>A<sup>T</sup>A</code>. After solving, I append h<sub>33</sub> = 1 and reshape the
+          nine values into <code>H</code>. I also spread the clicked points around the overlap;
+          points that are all clustered together or nearly collinear make the system poorly
+          conditioned. I did not use <code>cv2.findHomography</code> or another homography helper.
         </p>
 <pre><code>def computeH(im1_pts, im2_pts):
     a = []
@@ -148,19 +207,19 @@
       </div>
 
       <div class="pair single wide">
-        <figure><img class="shot" src="img/apartment_points.jpg" alt="Apartment point correspondences connected across two images"><figcaption><b>Apartment correspondences.</b> Each color connects the same feature in the left and middle images.</figcaption></figure>
+        <figure><img class="shot" src="img/apartment_points.jpg" alt="Etcheverry Hall North point correspondences connected across two images"><figcaption><b>Etcheverry Hall North correspondences.</b> Each color connects the same feature in the left and middle images.</figcaption></figure>
       </div>
       <div class="pair single wide">
         <figure><img class="shot" src="img/hallway_points.jpg" alt="Hallway point correspondences connected across two images"><figcaption><b>Hallway correspondences.</b> I spread the points across the overlap instead of clustering them in one corner.</figcaption></figure>
       </div>
       <div class="pair single wide">
-        <figure><img class="shot" src="img/garden_points.jpg" alt="Garden point correspondences connected across two images"><figcaption><b>Garden correspondences.</b> The tree branches, railing, and roof edges were the easiest features to click consistently.</figcaption></figure>
+        <figure><img class="shot" src="img/garden_points.jpg" alt="Etcheverry Hall South point correspondences connected across two images"><figcaption><b>Etcheverry Hall South correspondences.</b> The tree branches, railing, and roof edges were the easiest features to click consistently.</figcaption></figure>
       </div>
 
       <div class="prose" style="margin-top:36px">
         <h3>Recovered matrices</h3>
         <p>These examples map each left image into its middle image:</p>
-<pre class="matrix"><code>Apartment
+<pre class="matrix"><code>Etcheverry Hall North
 [[    5.074484    -0.296737 -3268.809037]
  [    1.614043     4.244451 -1355.234272]
  [    0.004050    -0.000076     1.000000]]
@@ -170,7 +229,7 @@ Hallway
  [    0.578830     2.059868  -396.432351]
  [    0.001570    -0.000004     1.000000]]
 
-Garden
+Etcheverry Hall South
 [[    3.299640    -0.144971 -1614.289351]
  [    1.111576     2.525038  -670.461626]
  [    0.002356    -0.000203     1.000000]]</code></pre>
@@ -261,10 +320,10 @@ Garden
       </div>
 
       <div class="pair single wide">
-        <figure><img class="shot" src="img/apartment_sources.jpg" alt="Three source photos for the apartment mosaic"><figcaption><b>Apartment source images.</b></figcaption></figure>
+        <figure><img class="shot" src="img/apartment_sources.jpg" alt="Three source photos for the Etcheverry Hall North mosaic"><figcaption><b>Etcheverry Hall North source images.</b></figcaption></figure>
       </div>
       <div class="pair single wide">
-        <figure><img class="shot" src="img/apartment_mosaic.jpg" alt="Feather-blended apartment panorama"><figcaption><b>Apartment mosaic.</b> The panorama reaches from the balcony on the left to the trees on the right.</figcaption></figure>
+        <figure><img class="shot" src="img/apartment_mosaic.jpg" alt="Feather-blended Etcheverry Hall North panorama"><figcaption><b>Etcheverry Hall North mosaic.</b> The panorama reaches from the balcony on the left to the trees on the right.</figcaption></figure>
       </div>
 
       <div class="pair single wide">
@@ -275,10 +334,56 @@ Garden
       </div>
 
       <div class="pair single wide">
-        <figure><img class="shot" src="img/garden_sources.jpg" alt="Three source photos for the garden mosaic"><figcaption><b>Garden source images.</b></figcaption></figure>
+        <figure><img class="shot" src="img/garden_sources.jpg" alt="Three source photos for the Etcheverry Hall South mosaic"><figcaption><b>Etcheverry Hall South source images.</b></figcaption></figure>
       </div>
       <div class="pair single wide">
-        <figure><img class="shot" src="img/garden_mosaic.jpg" alt="Feather-blended garden walkway panorama"><figcaption><b>Garden mosaic.</b> The result connects the stairs, red tree, walkway, and building in one view.</figcaption></figure>
+        <figure><img class="shot" src="img/garden_mosaic.jpg" alt="Feather-blended Etcheverry Hall South panorama"><figcaption><b>Etcheverry Hall South mosaic.</b> The result connects the stairs, red tree, walkway, and building in one view.</figcaption></figure>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">5</span>
+        <h2><span class="sub">Part A.5 · Optional</span>Bells &amp; Whistles: Cylindrical projection</h2>
+      </div>
+      <div class="prose">
+        <p>
+          This part is optional for CS 180. The planar Etcheverry Hall North mosaic stretches the
+          two side images because one flat projection has to represent a very wide field of view.
+          For this bells-and-whistles extension, I projected each photograph onto a cylinder
+          before aligning it. A cylinder lets horizontal camera rotation behave approximately
+          like a translation, so the buildings and trees keep much more natural proportions.
+        </p>
+        <p>
+          For a source point <code>(x, y)</code>, image center <code>(c<sub>x</sub>, c<sub>y</sub>)</code>,
+          and focal length <code>f</code>, my forward cylindrical coordinates are
+        </p>
+        <p class="eq">
+          &theta; = atan((x - c<sub>x</sub>) / f)<br>
+          x<sub>c</sub> = f&theta; + c<sub>x</sub><br>
+          y<sub>c</sub> = (y - c<sub>y</sub>) cos(&theta;) + c<sub>y</sub>
+        </p>
+        <p>
+          I used <code>f = 700</code> pixels. To avoid holes and unnecessary resampling, I used the
+          inverse equations for every pixel in the final panorama and sampled directly from the
+          original photographs with my bilinear interpolator:
+        </p>
+        <p class="eq">
+          &theta; = (x<sub>c</sub> - c<sub>x</sub>) / f<br>
+          x = f tan(&theta;) + c<sub>x</sub><br>
+          y = (y<sub>c</sub> - c<sub>y</sub>) / cos(&theta;) + c<sub>y</sub>
+        </p>
+        <p>
+          I also mapped the saved correspondences into cylindrical coordinates. Neighboring
+          cylindrical images should differ mostly by translation, so I used the median horizontal
+          and vertical displacement between their matching points. Finally, I applied the same
+          distance-based feathering as Part A.4 and cropped to the largest fully covered rectangle.
+        </p>
+      </div>
+
+      <div class="gallery two">
+        <figure><img class="shot" src="img/apartment_mosaic.jpg" alt="Planar Etcheverry Hall North mosaic with stretched side images"><figcaption><b>Planar projection.</b> The far sides stretch into large trapezoids.</figcaption></figure>
+        <figure><img class="shot" src="img/apartment_cylindrical.jpg" alt="Cylindrical Etcheverry Hall North panorama"><figcaption><b>Cylindrical projection.</b> The wide view keeps much more natural proportions.</figcaption></figure>
       </div>
     </section>
 
