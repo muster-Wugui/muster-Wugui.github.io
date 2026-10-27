@@ -23,6 +23,8 @@
   .gallery figure { text-align: center; }
   .gallery figcaption { max-width: none; }
   .pair.single.wide { max-width: 1100px; }
+  .pair.matches { max-width: 1100px; }
+  .pair.matches figcaption { max-width: 58ch; }
   .pair.single.feature { max-width: 1280px; margin-top: 48px; }
   .pair.single.feature + .pair.single.feature { margin-top: 34px; }
   .pair.single.feature figcaption { max-width: 82ch; }
@@ -35,6 +37,10 @@
   .eq {
     font-family: "STIX Two Math", "Times New Roman", serif; font-size: 1.35rem;
     line-height: 2; text-align: center; margin: 6px 0 22px !important; overflow-x: auto;
+  }
+  .inline-math {
+    font-family: "STIX Two Math", "Times New Roman", serif;
+    font-size: 1.08em; white-space: nowrap;
   }
   .matrix { font-size: .76rem; }
   .bench { margin: 34px 0 0 80px; overflow-x: auto; }
@@ -95,10 +101,11 @@
       <div class="prose">
         <p>
           I took each set from one spot and rotated the camera between shots, so the center of
-          projection stayed as fixed as I could keep it. I also left a lot of overlap between
-          neighboring views. The first set looks north from Etcheverry Hall, the second follows
-          a long hallway, and the third looks south from Etcheverry Hall. All three
-          have strong edges and details that made it easier to pick reliable correspondences.
+          projection stayed as fixed as I could keep it. I tried to leave enough overlap to find
+          reliable correspondences between neighboring views. The North set ended up with less
+          overlap than the others, which is one reason its planar mosaic stretches so much near
+          the sides. The first set looks north from Etcheverry Hall, the second follows a long
+          hallway, and the third looks south from Etcheverry Hall.
         </p>
       </div>
 
@@ -209,33 +216,51 @@
     return np.append(h, 1).reshape(3, 3)</code></pre>
       </div>
 
-      <div class="pair single wide">
-        <figure><img class="shot" src="img/apartment_points.jpg" alt="Etcheverry Hall North point correspondences connected across two images"><figcaption><b>Etcheverry Hall North correspondences.</b> Each color connects the same feature in the left and middle images.</figcaption></figure>
+      <div class="pair matches">
+        <figure><img class="shot" src="img/apartment_points.jpg" alt="Etcheverry Hall North left-to-middle point correspondences"><figcaption><b>Etcheverry Hall North: left &rarr; middle.</b></figcaption></figure>
+        <figure><img class="shot" src="img/apartment_points_right.jpg" alt="Etcheverry Hall North right-to-middle point correspondences"><figcaption><b>Etcheverry Hall North: right &rarr; middle.</b></figcaption></figure>
       </div>
-      <div class="pair single wide">
-        <figure><img class="shot" src="img/hallway_points.jpg" alt="Hallway point correspondences connected across two images"><figcaption><b>Hallway correspondences.</b> I spread the points across the overlap instead of clustering them in one corner.</figcaption></figure>
+      <div class="pair matches">
+        <figure><img class="shot" src="img/hallway_points.jpg" alt="Hallway left-to-middle point correspondences"><figcaption><b>Hallway: left &rarr; middle.</b></figcaption></figure>
+        <figure><img class="shot" src="img/hallway_points_right.jpg" alt="Hallway right-to-middle point correspondences"><figcaption><b>Hallway: right &rarr; middle.</b></figcaption></figure>
       </div>
-      <div class="pair single wide">
-        <figure><img class="shot" src="img/garden_points.jpg" alt="Etcheverry Hall South point correspondences connected across two images"><figcaption><b>Etcheverry Hall South correspondences.</b> The tree branches, railing, and roof edges were the easiest features to click consistently.</figcaption></figure>
+      <div class="pair matches">
+        <figure><img class="shot" src="img/garden_points.jpg" alt="Etcheverry Hall South left-to-middle point correspondences"><figcaption><b>Etcheverry Hall South: left &rarr; middle.</b></figcaption></figure>
+        <figure><img class="shot" src="img/garden_points_right.jpg" alt="Etcheverry Hall South right-to-middle point correspondences"><figcaption><b>Etcheverry Hall South: right &rarr; middle.</b></figcaption></figure>
       </div>
 
       <div class="prose" style="margin-top:36px">
         <h3>Recovered matrices</h3>
-        <p>These examples map each left image into its middle image:</p>
-<pre class="matrix"><code>Etcheverry Hall North
+        <p>For each mosaic, I recovered one matrix from the left image to the middle and another from the right image to the middle:</p>
+<pre class="matrix"><code>Etcheverry Hall North · left → middle
 [[    5.074484    -0.296737 -3268.809037]
  [    1.614043     4.244451 -1355.234272]
  [    0.004050    -0.000076     1.000000]]
 
-Hallway
+Etcheverry Hall North · right → middle
+[[  0.122095   0.022841 629.210606]
+ [ -0.358632   0.808271  89.104938]
+ [ -0.000864  -0.000024   1.000000]]
+
+Hallway · left → middle
 [[    2.751649     0.008088 -1304.756127]
  [    0.578830     2.059868  -396.432351]
  [    0.001570    -0.000004     1.000000]]
 
-Etcheverry Hall South
+Hallway · right → middle
+[[  0.354589  -0.001546 466.718280]
+ [ -0.253740   0.796993  84.006562]
+ [ -0.000692   0.000002   1.000000]]
+
+Etcheverry Hall South · left → middle
 [[    3.299640    -0.144971 -1614.289351]
  [    1.111576     2.525038  -670.461626]
- [    0.002356    -0.000203     1.000000]]</code></pre>
+ [    0.002356    -0.000203     1.000000]]
+
+Etcheverry Hall South · right → middle
+[[  0.277231   0.002410 499.301101]
+ [ -0.323828   0.753467 121.235199]
+ [ -0.000679  -0.000071   1.000000]]</code></pre>
       </div>
     </section>
 
@@ -247,13 +272,24 @@ Etcheverry Hall South
       <div class="prose">
         <p>
           I used inverse warping so every destination pixel gets a value. For each output point
-          (p'), I compute (p=H^{-1}p'), divide by its homogeneous coordinate, and sample the
-          source image at that location. My nearest-neighbor version rounds to the closest pixel.
-          My bilinear version takes the four surrounding pixels and weights them by the horizontal
-          and vertical distances. Both interpolators are written directly with NumPy; I did not
-          use <code>cv2.warpPerspective</code>, <code>skimage.transform.warp</code>, or an
-          interpolation helper.
+          <span class="inline-math">p'</span>, I compute
+          <span class="inline-math">p = H<sup>&minus;1</sup>p'</span>, divide by the homogeneous
+          coordinate, and sample the source image at that location. My nearest-neighbor version
+          rounds to the closest pixel. My bilinear version takes the four surrounding pixels and
+          weights them by the horizontal and vertical distances. Both interpolators are written
+          directly with NumPy; I did not use <code>cv2.warpPerspective</code>,
+          <code>skimage.transform.warp</code>, or an interpolation helper.
         </p>
+        <p>
+          The two required entry points are <code>warpImageNearestNeighbor(im, H)</code> and
+          <code>warpImageBilinear(im, H)</code>. They share the same inverse-warping routine and
+          select which interpolation rule it uses.
+        </p>
+<pre><code>def warpImageNearestNeighbor(im, H):
+    return warp_bounds(im, H, "nearest")[0]
+
+def warpImageBilinear(im, H):
+    return warp_bounds(im, H, "bilinear")[0]</code></pre>
         <p>
           Before making mosaics, I tested the warp by clicking four corners of two known
           rectangles and mapping them to upright rectangles. This made mistakes in point order or
