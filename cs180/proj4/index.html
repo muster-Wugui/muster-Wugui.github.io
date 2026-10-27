@@ -30,8 +30,34 @@
   }
   pre code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
   .eq {
-    font-family: "Instrument Serif", serif; font-size: 1.28rem; text-align: center;
-    margin: 6px 0 22px !important; overflow-x: auto;
+    max-width: 900px; margin: 28px auto !important; padding: 20px 28px;
+    font-family: "Instrument Serif", serif; font-size: clamp(1.25rem, 2vw, 1.55rem);
+    line-height: 2; text-align: center; overflow-x: auto;
+    background: var(--bg-alt); border: 1px solid var(--line); border-left: 3px solid var(--accent);
+    border-radius: var(--radius);
+  }
+  .math-card {
+    display: grid; gap: 24px; max-width: 680px; margin: 30px auto; padding: 30px 38px;
+    background: var(--bg-alt); border: 1px solid var(--line); border-left: 3px solid var(--accent);
+    border-radius: var(--radius); box-shadow: var(--shadow); overflow-x: auto;
+  }
+  .math-line {
+    display: grid; grid-template-columns: 84px 20px minmax(360px, 1fr); align-items: center;
+    column-gap: 14px; font-family: "Instrument Serif", serif;
+    font-size: clamp(1.45rem, 2.4vw, 1.85rem); line-height: 1.35;
+  }
+  .math-line .lhs { text-align: right; white-space: nowrap; }
+  .math-line .equals { text-align: center; }
+  .math-line .rhs { text-align: left; white-space: nowrap; }
+  .frac {
+    display: inline-grid; grid-template-rows: auto auto; margin: 0 .15em;
+    vertical-align: middle; text-align: center; line-height: 1.05;
+  }
+  .frac > span:first-child { padding: 0 .2em .12em; border-bottom: 1px solid currentColor; }
+  .frac > span:last-child { padding-top: .1em; }
+  .math-note {
+    margin: -12px auto 28px; max-width: 680px; text-align: center;
+    color: var(--ink-soft); font-size: .82rem;
   }
   .matrix { font-size: .76rem; }
   .bench { margin: 34px 0 0 80px; overflow-x: auto; }
@@ -46,6 +72,9 @@
   @media (max-width: 760px) {
     .gallery, .gallery.two { grid-template-columns: 1fr; }
     .bench { margin-left: 0; }
+    .eq { padding: 16px 18px; }
+    .math-card { padding: 24px 20px; }
+    .math-line { grid-template-columns: 58px 16px minmax(300px, 1fr); column-gap: 10px; }
   }
 </style>
 </head>
@@ -142,15 +171,15 @@
           h<sub>31</sub>x + h<sub>32</sub>y + h<sub>33</sub>]<sup>T</sup>
         </p>
         <p class="eq">
-          u =
-          <span style="white-space:nowrap">(h<sub>11</sub>x + h<sub>12</sub>y + h<sub>13</sub>)</span>
-          /
-          <span style="white-space:nowrap">(h<sub>31</sub>x + h<sub>32</sub>y + h<sub>33</sub>)</span>
+          u = <span class="frac">
+            <span>h<sub>11</sub>x + h<sub>12</sub>y + h<sub>13</sub></span>
+            <span>h<sub>31</sub>x + h<sub>32</sub>y + h<sub>33</sub></span>
+          </span>
           <br>
-          v =
-          <span style="white-space:nowrap">(h<sub>21</sub>x + h<sub>22</sub>y + h<sub>23</sub>)</span>
-          /
-          <span style="white-space:nowrap">(h<sub>31</sub>x + h<sub>32</sub>y + h<sub>33</sub>)</span>
+          v = <span class="frac">
+            <span>h<sub>21</sub>x + h<sub>22</sub>y + h<sub>23</sub></span>
+            <span>h<sub>31</sub>x + h<sub>32</sub>y + h<sub>33</sub></span>
+          </span>
         </p>
         <p>
           A homography is unchanged if every entry is multiplied by the same scale, so it has
@@ -358,21 +387,47 @@ Etcheverry Hall South
           For a source point <code>(x, y)</code>, image center <code>(c<sub>x</sub>, c<sub>y</sub>)</code>,
           and focal length <code>f</code>, my forward cylindrical coordinates are
         </p>
-        <p class="eq">
-          &theta; = atan((x - c<sub>x</sub>) / f)<br>
-          x<sub>c</sub> = f&theta; + c<sub>x</sub><br>
-          y<sub>c</sub> = (y - c<sub>y</sub>) cos(&theta;) + c<sub>y</sub>
-        </p>
+        <div class="math-card" aria-label="Forward cylindrical projection equations">
+          <div class="math-line">
+            <span class="lhs">&theta;</span>
+            <span class="equals">=</span>
+            <span class="rhs">atan(<span class="frac"><span>x &minus; c<sub>x</sub></span><span>f</span></span>)</span>
+          </div>
+          <div class="math-line">
+            <span class="lhs">x<sub>c</sub></span>
+            <span class="equals">=</span>
+            <span class="rhs">f&theta; + c<sub>x</sub></span>
+          </div>
+          <div class="math-line">
+            <span class="lhs">y<sub>c</sub></span>
+            <span class="equals">=</span>
+            <span class="rhs">(y &minus; c<sub>y</sub>) cos(&theta;) + c<sub>y</sub></span>
+          </div>
+        </div>
+        <p class="math-note">Forward mapping from a flat image onto the cylindrical surface.</p>
         <p>
           I used <code>f = 700</code> pixels. To avoid holes and unnecessary resampling, I used the
           inverse equations for every pixel in the final panorama and sampled directly from the
           original photographs with my bilinear interpolator:
         </p>
-        <p class="eq">
-          &theta; = (x<sub>c</sub> - c<sub>x</sub>) / f<br>
-          x = f tan(&theta;) + c<sub>x</sub><br>
-          y = (y<sub>c</sub> - c<sub>y</sub>) / cos(&theta;) + c<sub>y</sub>
-        </p>
+        <div class="math-card" aria-label="Inverse cylindrical projection equations">
+          <div class="math-line">
+            <span class="lhs">&theta;</span>
+            <span class="equals">=</span>
+            <span class="rhs"><span class="frac"><span>x<sub>c</sub> &minus; c<sub>x</sub></span><span>f</span></span></span>
+          </div>
+          <div class="math-line">
+            <span class="lhs">x</span>
+            <span class="equals">=</span>
+            <span class="rhs">f tan(&theta;) + c<sub>x</sub></span>
+          </div>
+          <div class="math-line">
+            <span class="lhs">y</span>
+            <span class="equals">=</span>
+            <span class="rhs"><span class="frac"><span>y<sub>c</sub> &minus; c<sub>y</sub></span><span>cos(&theta;)</span></span> + c<sub>y</sub></span>
+          </div>
+        </div>
+        <p class="math-note">Inverse mapping used to sample the original image without holes.</p>
         <p>
           I also mapped the saved correspondences into cylindrical coordinates. Neighboring
           cylindrical images should differ mostly by translation, so I used the median horizontal
