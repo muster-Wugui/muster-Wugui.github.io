@@ -23,6 +23,9 @@
   .gallery figure { text-align: center; }
   .gallery figcaption { max-width: none; }
   .pair.single.wide { max-width: 1100px; }
+  .pair.single.feature { max-width: 1280px; margin-top: 48px; }
+  .pair.single.feature + .pair.single.feature { margin-top: 34px; }
+  .pair.single.feature figcaption { max-width: 82ch; }
   pre {
     margin: 0 0 18px; padding: 16px 18px; overflow-x: auto;
     background: var(--bg-alt); border: 1px solid var(--line); border-radius: var(--radius);
@@ -381,8 +384,10 @@ Etcheverry Hall South
         </p>
       </div>
 
-      <div class="gallery two">
+      <div class="pair single feature">
         <figure><img class="shot" src="img/apartment_mosaic.jpg" alt="Planar Etcheverry Hall North mosaic with stretched side images"><figcaption><b>Planar projection.</b> The far sides stretch into large trapezoids.</figcaption></figure>
+      </div>
+      <div class="pair single feature">
         <figure><img class="shot" src="img/apartment_cylindrical.jpg" alt="Cylindrical Etcheverry Hall North panorama"><figcaption><b>Cylindrical projection.</b> The wide view keeps much more natural proportions.</figcaption></figure>
       </div>
     </section>
