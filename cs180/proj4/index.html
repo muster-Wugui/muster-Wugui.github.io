@@ -445,9 +445,12 @@ def warpImageBilinear(im, H):
           to locate again in another photo. I converted each image to grayscale and used the
           provided <code>get_harris_corners</code> function at a single scale. It returns every
           local maximum of the Harris response, so I got about 19,000 points on a
-          1000&times;750 photo. Many of them were tiny noise peaks in the flat blue sky. I kept only
-          corners with a response above 0.001 of the strongest one, which removed almost all of
-          the sky points and left about 7,600 corners.
+          1000&times;750 photo. Many of them were tiny noise peaks in the flat blue sky. These are a
+          problem for ANMS below: a weak sky point has no stronger neighbor nearby, so it gets a
+          large radius and is kept, even though it cannot be matched reliably. In my first try,
+          hundreds of the chosen corners ended up in the sky. I kept only corners with a response
+          above 0.001 of the strongest one, which removed all but one sky point and left 7,661
+          corners on the buildings and trees.
         </p>
         <p>
           That is still far too many, and the strongest corners bunch up in busy areas like the
@@ -533,15 +536,18 @@ def warpImageBilinear(im, H):
           the second-nearest neighbor.
         </p>
         <p class="eq">
-          e<sub>1-NN</sub> / e<sub>2-NN</sub> &lt; 0.6
+          e<sub>1-NN</sub> / e<sub>2-NN</sub> &lt; 0.7
         </p>
         <p>
-          I picked 0.6 from Figure 6b of the paper, where correct and incorrect matches start to
-          separate well. I also tried 0.7. It gave more matches, but a larger share of them were
-          wrong, so I kept 0.6. A few bad matches still get through, like the palm tree in the
-          Etcheverry Hall North set below. RANSAC handles those in the next step.
+          Figure 6b of the paper shows that correct and incorrect matches separate well in this
+          range of ratios. I first used 0.6, but on the Etcheverry Hall South set it left only about
+          30 matches per pair, all bunched in one area. Raising the threshold to 0.7 roughly
+          doubled the matches. It also lets more wrong matches through, but RANSAC in the next step
+          is built to remove them. For example, the right &rarr; middle hallway pair has many wrong
+          matches between different ceiling tiles and cinder blocks, because those patterns repeat
+          and look almost the same.
         </p>
-<pre><code>def match(d1, d2, t=0.6):
+<pre><code>def match(d1, d2, t=0.7):
     d = np.sqrt(np.maximum(dist2(d1, d2), 0))
     j = np.argsort(d, axis=1)[:, :2]
     i = np.arange(len(d1))
@@ -550,16 +556,16 @@ def warpImageBilinear(im, H):
       </div>
 
       <div class="pair matches">
-        <figure><img class="shot" src="img/apartment_matches.jpg" alt="Etcheverry Hall North left-to-middle feature matches"><figcaption><b>Etcheverry Hall North: left &rarr; middle.</b> 76 matches.</figcaption></figure>
-        <figure><img class="shot" src="img/apartment_matches_right.jpg" alt="Etcheverry Hall North right-to-middle feature matches"><figcaption><b>Etcheverry Hall North: right &rarr; middle.</b> 81 matches.</figcaption></figure>
+        <figure><img class="shot" src="img/apartment_matches.jpg" alt="Etcheverry Hall North left-to-middle feature matches"><figcaption><b>Etcheverry Hall North: left &rarr; middle.</b> 104 matches.</figcaption></figure>
+        <figure><img class="shot" src="img/apartment_matches_right.jpg" alt="Etcheverry Hall North right-to-middle feature matches"><figcaption><b>Etcheverry Hall North: right &rarr; middle.</b> 119 matches.</figcaption></figure>
       </div>
       <div class="pair matches">
-        <figure><img class="shot" src="img/hallway_matches.jpg" alt="Hallway left-to-middle feature matches"><figcaption><b>Hallway: left &rarr; middle.</b> 76 matches.</figcaption></figure>
-        <figure><img class="shot" src="img/hallway_matches_right.jpg" alt="Hallway right-to-middle feature matches"><figcaption><b>Hallway: right &rarr; middle.</b> 85 matches.</figcaption></figure>
+        <figure><img class="shot" src="img/hallway_matches.jpg" alt="Hallway left-to-middle feature matches"><figcaption><b>Hallway: left &rarr; middle.</b> 104 matches.</figcaption></figure>
+        <figure><img class="shot" src="img/hallway_matches_right.jpg" alt="Hallway right-to-middle feature matches"><figcaption><b>Hallway: right &rarr; middle.</b> 140 matches.</figcaption></figure>
       </div>
       <div class="pair matches">
-        <figure><img class="shot" src="img/garden_matches.jpg" alt="Etcheverry Hall South left-to-middle feature matches"><figcaption><b>Etcheverry Hall South: left &rarr; middle.</b> 31 matches.</figcaption></figure>
-        <figure><img class="shot" src="img/garden_matches_right.jpg" alt="Etcheverry Hall South right-to-middle feature matches"><figcaption><b>Etcheverry Hall South: right &rarr; middle.</b> 36 matches.</figcaption></figure>
+        <figure><img class="shot" src="img/garden_matches.jpg" alt="Etcheverry Hall South left-to-middle feature matches"><figcaption><b>Etcheverry Hall South: left &rarr; middle.</b> 62 matches.</figcaption></figure>
+        <figure><img class="shot" src="img/garden_matches_right.jpg" alt="Etcheverry Hall South right-to-middle feature matches"><figcaption><b>Etcheverry Hall South: right &rarr; middle.</b> 79 matches.</figcaption></figure>
       </div>
     </section>
 
@@ -574,40 +580,71 @@ def warpImageBilinear(im, H):
           homography far off. I used 4-point RANSAC to find the set of matches that agree with
           each other. In each of 2000 rounds, I pick four random matches, fit an exact homography
           with my <code>computeH</code> from Part A, and project every point from the first image.
-          A match counts as an inlier if its projected point lands within 2 pixels of its partner.
+          A match counts as an inlier if its projected point lands within 3 pixels of its partner.
           After all the rounds, I take the largest inlier set and refit <code>H</code> on all of
           those points with least squares.
         </p>
-<pre><code>def ransac(p1, p2, n=2000, eps=2):
+        <p>
+          I also added two checks so RANSAC does not break on harder inputs. If there are fewer than
+          four matches, or the best set has fewer than four inliers, it stops with an error instead
+          of returning a bad matrix. It also skips any sample where three of the four points are
+          almost on one line (the triangle they form has an area under 5 square pixels), because
+          those four points cannot pin down a homography.
+        </p>
+<pre><code>def flat(p):
+    for i in range(4):
+        a, b, c = np.delete(p, i, axis=0)
+        u = b - a
+        v = c - a
+        if abs(u[0] * v[1] - u[1] * v[0]) &lt; 10:
+            return True
+    return False
+
+
+def ransac(p1, p2, n=2000, eps=3):
+    if len(p1) &lt; 4:
+        raise ValueError("need at least 4 matches")
     rng = np.random.default_rng(0)
     best = np.zeros(len(p1), dtype=bool)
     for _ in range(n):
         k = rng.choice(len(p1), 4, replace=False)
+        if flat(p1[k]) or flat(p2[k]):
+            continue
         h = computeH(p1[k], p2[k])
         with np.errstate(all="ignore"):
             e = np.linalg.norm(project(p1, h) - p2, axis=1)
         ok = e &lt; eps
         if ok.sum() &gt; best.sum():
             best = ok
+    if best.sum() &lt; 4:
+        raise ValueError("RANSAC found fewer than 4 inliers")
     return computeH(p1[best], p2[best]), best</code></pre>
         <p>
           With the left &rarr; middle and right &rarr; middle homographies, I reused the same
           canvas and distance-transform feathering from Part A.4. The only difference from Part A
           is where the correspondences come from.
         </p>
+        <p>
+          To check the automatic homographies, I used my clicked points from Part A as ground
+          truth. I map each clicked point with the automatic <code>H</code> and measure how far it
+          lands from the point I clicked in the middle image. Since my clicks cover the whole
+          overlap, this also catches a homography that fits one small area well but is wrong
+          elsewhere. For reference, my manual homographies are 0.4 to 1.1 pixels off on their own
+          points, which is roughly how precise my clicking was.
+        </p>
       </div>
 
       <div class="bench">
         <table>
-          <caption>Ratio-test matches and RANSAC inliers</caption>
-          <thead><tr><th>Set</th><th>Pair</th><th>Matches</th><th>Inliers</th></tr></thead>
+          <caption>Matches, RANSAC inliers, and error on my clicked points</caption>
+          <thead><tr><th>Set</th><th>Pair</th><th>Matches</th><th>Inliers</th><th>Error</th></tr></thead>
           <tbody>
-            <tr><td>Etcheverry Hall North</td><td>left &rarr; middle</td><td>76</td><td>69</td></tr>
-            <tr><td>Etcheverry Hall North</td><td>right &rarr; middle</td><td>81</td><td>78</td></tr>
-            <tr><td>Hallway</td><td>left &rarr; middle</td><td>76</td><td>62</td></tr>
-            <tr><td>Hallway</td><td>right &rarr; middle</td><td>85</td><td>42</td></tr>
-            <tr><td>Etcheverry Hall South</td><td>left &rarr; middle</td><td>31</td><td>12</td></tr>
-            <tr><td>Etcheverry Hall South</td><td>right &rarr; middle</td><td>36</td><td>15</td></tr>
+            <tr><td>Etcheverry Hall North</td><td>left &rarr; middle</td><td>104</td><td>90</td><td>1.3 px</td></tr>
+            <tr><td>Etcheverry Hall North</td><td>right &rarr; middle</td><td>119</td><td>112</td><td>0.7 px</td></tr>
+            <tr><td>Hallway</td><td>left &rarr; middle</td><td>104</td><td>78</td><td>0.6 px</td></tr>
+            <tr><td>Hallway</td><td>right &rarr; middle</td><td>140</td><td>69</td><td>0.7 px</td></tr>
+            <tr><td>Etcheverry Hall South</td><td>left &rarr; middle</td><td>62</td><td>23</td><td>3.8 px</td></tr>
+            <tr><td>Etcheverry Hall South</td><td>right &rarr; middle</td><td>79</td><td>37</td><td>2.6 px</td></tr>
           </tbody>
         </table>
       </div>
@@ -630,12 +667,20 @@ def warpImageBilinear(im, H):
         <p>
           The left column uses my clicked points from Part A, and the right column uses the
           automatic pipeline. For the Etcheverry Hall North and Hallway sets, the two results look
-          almost the same, and the recovered matrices are close to my manual ones. The automatic
-          version even finds more correspondences than I clicked. Etcheverry Hall South was the
-          hardest set: the bushes and leaves look alike everywhere, so only 12 and 15 matches
-          survived RANSAC, and most of them sit on the roof and power lines. The overlap still
-          lines up well, but the far-left image is stretched more than in my manual mosaic,
-          because my clicked points covered more of the overlap.
+          almost the same. Their automatic homographies are within about one pixel of my clicks,
+          which is as close as my own clicking was, and they use many more correspondences than
+          the 12 I clicked.
+        </p>
+        <p>
+          Etcheverry Hall South was the hardest set. The bushes and leaves look alike everywhere, so
+          almost all of the inliers sit in one band along the roof, power lines, and tree. With my
+          first settings (ratio 0.6, 2-pixel tolerance), only 12 of 31 matches survived for the
+          left pair, and that homography was 10.4 pixels off on my clicked points: it fit the roof
+          area well but was wrong elsewhere. With the looser ratio and tolerance, RANSAC keeps 23 and
+          37 inliers, and the error drops to 3.8 and 2.6 pixels. The overlap lines up well, but
+          the far-left image is still stretched more than in my manual mosaic. There are no
+          matches in the lower half of the overlap, so the homography has to extrapolate there,
+          while my clicks covered that area too.
         </p>
       </div>
 
