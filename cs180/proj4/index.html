@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CS 180 · Project 4A</title>
-<meta name="description" content="Project 4A for CS 180: image warping, homographies, rectification, interpolation, and image mosaics.">
+<title>CS 180 · Project 4</title>
+<meta name="description" content="Project 4 for CS 180: image warping, homographies, rectification, image mosaics, and automatic feature matching with RANSAC.">
 <link rel="icon" href="../../assets/img/berkeley-seal.svg">
 <script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -78,7 +78,7 @@
   <div class="wrap">
 
     <div class="hero compact">
-      <p class="eyebrow">CS 180 <span class="dot">·</span> Project 4A</p>
+      <p class="eyebrow">CS 180 <span class="dot">·</span> Project 4</p>
       <h1>Image Warping and Mosaicing</h1>
       <p class="lead">
         For this project, I built the main pieces of a panorama stitcher myself. I started with
@@ -89,6 +89,11 @@
       <p class="lead" style="margin-top:14px">
         I think the most interesting part was seeing how one 3&times;3 matrix can either flatten a
         poster or line up two views of a whole scene.
+      </p>
+      <p class="lead" style="margin-top:14px">
+        In Part B, I removed the clicking step. My code now finds corners, describes them with
+        small patches, matches them between images, and uses RANSAC to pick a homography that
+        most matches agree on. I then compared the automatic mosaics with my manual ones from Part A.
       </p>
       <div class="rule"></div>
     </div>
@@ -425,6 +430,226 @@ def warpImageBilinear(im, H):
       </div>
       <div class="pair single feature">
         <figure><img class="shot" src="img/apartment_cylindrical.jpg" alt="Cylindrical Etcheverry Hall North panorama"><figcaption><b>Cylindrical projection.</b> The wide view keeps much more natural proportions.</figcaption></figure>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">6</span>
+        <h2><span class="sub">Part B.1</span>Harris corners and ANMS</h2>
+      </div>
+      <div class="prose">
+        <p>
+          For Part B, I followed a simplified version of Brown et al., &ldquo;Multi-Image Matching
+          using Multi-Scale Oriented Patches.&rdquo; The first step is to find points that are easy
+          to locate again in another photo. I converted each image to grayscale and used the
+          provided <code>get_harris_corners</code> function at a single scale. It returns every
+          local maximum of the Harris response, so I got about 19,000 points on a
+          1000&times;750 photo. Many of them were tiny noise peaks in the flat blue sky. I kept only
+          corners with a response above 0.001 of the strongest one, which removed almost all of
+          the sky points and left about 7,600 corners.
+        </p>
+        <p>
+          That is still far too many, and the strongest corners bunch up in busy areas like the
+          trees and the solar panels. If I only took the strongest ones, most of my matches would
+          come from one small part of the image. Adaptive non-maximal suppression (ANMS) fixes
+          this. For each corner <span class="inline-math">x<sub>i</sub></span>, I find the radius to
+          the nearest corner that is clearly stronger:
+        </p>
+        <p class="eq">
+          r<sub>i</sub> = min<sub>j</sub> ||x<sub>i</sub> &minus; x<sub>j</sub>||,
+          &nbsp; s.t. &nbsp; f(x<sub>i</sub>) &lt; c &middot; f(x<sub>j</sub>), &nbsp; c = 0.9
+        </p>
+        <p>
+          A corner gets a large radius only if it is the strongest point in a big neighborhood. I
+          then keep the 1000 corners with the largest radii. The paper uses 500, but I got about
+          twice as many correct matches with 1000. To keep the memory reasonable, I compute the
+          pairwise distances in chunks of 1000 rows using <code>dist2</code>.
+        </p>
+<pre><code>def anms(pts, r, n=1000, c=0.9):
+    d = np.full(len(pts), np.inf)
+    for i in range(0, len(pts), 1000):
+        dd = dist2(pts[i:i + 1000].astype(float), pts.astype(float))
+        dd[r[i:i + 1000, None] >= c * r[None, :]] = np.inf
+        d[i:i + 1000] = dd.min(axis=1)
+    keep = np.argsort(-d)[:n]
+    return pts[keep]</code></pre>
+      </div>
+
+      <div class="gallery two">
+        <figure><img class="shot" src="img/apartment_harris.jpg" alt="All Harris corners on the middle Etcheverry Hall North image"><figcaption><b>Without ANMS.</b> All 7,661 Harris corners after the strength threshold.</figcaption></figure>
+        <figure><img class="shot" src="img/apartment_anms.jpg" alt="1000 corners chosen by ANMS on the middle Etcheverry Hall North image"><figcaption><b>With ANMS.</b> 1000 corners that are spread much more evenly.</figcaption></figure>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">7</span>
+        <h2><span class="sub">Part B.2</span>Feature descriptors</h2>
+      </div>
+      <div class="prose">
+        <p>
+          Next, I describe the area around each corner so I can compare corners between images. I
+          blur the grayscale image with a Gaussian (&sigma; = 2), then sample an 8&times;8 grid with
+          a spacing of 5 pixels inside a 40&times;40 window around the corner. Sampling the larger
+          window from a blurred image keeps the descriptor from changing much when the corner
+          location is off by a pixel or two. I use axis-aligned patches because I rotated the
+          camera only horizontally, so the patches do not need to be rotation invariant.
+        </p>
+        <p>
+          Finally, I apply bias/gain normalization: I subtract the patch mean and divide by its
+          standard deviation. This means a patch that is brighter or has more contrast in one
+          photo can still match the same patch in another photo. Each descriptor is a 64-entry
+          vector.
+        </p>
+<pre><code>def desc(im, pts):
+    g = gaussian_filter(gray(im), 2)
+    d = []
+    for x, y in pts:
+        p = g[y - 18:y + 20:5, x - 18:x + 20:5]
+        d.append(((p - p.mean()) / (p.std() + 1e-8)).ravel())
+    return np.array(d)</code></pre>
+      </div>
+
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/apartment_features_boxes.jpg" alt="Six 40 by 40 feature windows marked on the middle Etcheverry Hall North image"><figcaption><b>Example windows.</b> Six of the ANMS corners with their 40&times;40 windows.</figcaption></figure>
+      </div>
+      <div class="pair single wide">
+        <figure><img class="shot" src="img/apartment_features.jpg" alt="Six 40 by 40 windows and their normalized 8 by 8 descriptors"><figcaption><b>Extracted features.</b> Top: the 40&times;40 windows in order 1&ndash;6. Bottom: the normalized 8&times;8 descriptors, scaled up for display.</figcaption></figure>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">8</span>
+        <h2><span class="sub">Part B.3</span>Feature matching</h2>
+      </div>
+      <div class="prose">
+        <p>
+          To match features, I compute the distance from every descriptor in one image to every
+          descriptor in the other. A small nearest-neighbor distance alone is not enough, because
+          repeated textures like windows and roof tiles can have several close matches. Instead, I
+          used Lowe's ratio test: I keep a match only if the nearest neighbor is much closer than
+          the second-nearest neighbor.
+        </p>
+        <p class="eq">
+          e<sub>1-NN</sub> / e<sub>2-NN</sub> &lt; 0.6
+        </p>
+        <p>
+          I picked 0.6 from Figure 6b of the paper, where correct and incorrect matches start to
+          separate well. I also tried 0.7. It gave more matches, but a larger share of them were
+          wrong, so I kept 0.6. A few bad matches still get through, like the palm tree in the
+          Etcheverry Hall North set below. RANSAC handles those in the next step.
+        </p>
+<pre><code>def match(d1, d2, t=0.6):
+    d = np.sqrt(np.maximum(dist2(d1, d2), 0))
+    j = np.argsort(d, axis=1)[:, :2]
+    i = np.arange(len(d1))
+    ok = d[i, j[:, 0]] / d[i, j[:, 1]] &lt; t
+    return np.c_[i[ok], j[ok, 0]]</code></pre>
+      </div>
+
+      <div class="pair matches">
+        <figure><img class="shot" src="img/apartment_matches.jpg" alt="Etcheverry Hall North left-to-middle feature matches"><figcaption><b>Etcheverry Hall North: left &rarr; middle.</b> 76 matches.</figcaption></figure>
+        <figure><img class="shot" src="img/apartment_matches_right.jpg" alt="Etcheverry Hall North right-to-middle feature matches"><figcaption><b>Etcheverry Hall North: right &rarr; middle.</b> 81 matches.</figcaption></figure>
+      </div>
+      <div class="pair matches">
+        <figure><img class="shot" src="img/hallway_matches.jpg" alt="Hallway left-to-middle feature matches"><figcaption><b>Hallway: left &rarr; middle.</b> 76 matches.</figcaption></figure>
+        <figure><img class="shot" src="img/hallway_matches_right.jpg" alt="Hallway right-to-middle feature matches"><figcaption><b>Hallway: right &rarr; middle.</b> 85 matches.</figcaption></figure>
+      </div>
+      <div class="pair matches">
+        <figure><img class="shot" src="img/garden_matches.jpg" alt="Etcheverry Hall South left-to-middle feature matches"><figcaption><b>Etcheverry Hall South: left &rarr; middle.</b> 31 matches.</figcaption></figure>
+        <figure><img class="shot" src="img/garden_matches_right.jpg" alt="Etcheverry Hall South right-to-middle feature matches"><figcaption><b>Etcheverry Hall South: right &rarr; middle.</b> 36 matches.</figcaption></figure>
+      </div>
+    </section>
+
+    <section class="task">
+      <div class="task-head">
+        <span class="task-num">9</span>
+        <h2><span class="sub">Part B.4</span>RANSAC and automatic mosaics</h2>
+      </div>
+      <div class="prose">
+        <p>
+          Least squares is very sensitive to outliers, so even one bad match can pull the
+          homography far off. I used 4-point RANSAC to find the set of matches that agree with
+          each other. In each of 2000 rounds, I pick four random matches, fit an exact homography
+          with my <code>computeH</code> from Part A, and project every point from the first image.
+          A match counts as an inlier if its projected point lands within 2 pixels of its partner.
+          After all the rounds, I take the largest inlier set and refit <code>H</code> on all of
+          those points with least squares.
+        </p>
+<pre><code>def ransac(p1, p2, n=2000, eps=2):
+    rng = np.random.default_rng(0)
+    best = np.zeros(len(p1), dtype=bool)
+    for _ in range(n):
+        k = rng.choice(len(p1), 4, replace=False)
+        h = computeH(p1[k], p2[k])
+        with np.errstate(all="ignore"):
+            e = np.linalg.norm(project(p1, h) - p2, axis=1)
+        ok = e &lt; eps
+        if ok.sum() &gt; best.sum():
+            best = ok
+    return computeH(p1[best], p2[best]), best</code></pre>
+        <p>
+          With the left &rarr; middle and right &rarr; middle homographies, I reused the same
+          canvas and distance-transform feathering from Part A.4. The only difference from Part A
+          is where the correspondences come from.
+        </p>
+      </div>
+
+      <div class="bench">
+        <table>
+          <caption>Ratio-test matches and RANSAC inliers</caption>
+          <thead><tr><th>Set</th><th>Pair</th><th>Matches</th><th>Inliers</th></tr></thead>
+          <tbody>
+            <tr><td>Etcheverry Hall North</td><td>left &rarr; middle</td><td>76</td><td>69</td></tr>
+            <tr><td>Etcheverry Hall North</td><td>right &rarr; middle</td><td>81</td><td>78</td></tr>
+            <tr><td>Hallway</td><td>left &rarr; middle</td><td>76</td><td>62</td></tr>
+            <tr><td>Hallway</td><td>right &rarr; middle</td><td>85</td><td>42</td></tr>
+            <tr><td>Etcheverry Hall South</td><td>left &rarr; middle</td><td>31</td><td>12</td></tr>
+            <tr><td>Etcheverry Hall South</td><td>right &rarr; middle</td><td>36</td><td>15</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pair matches">
+        <figure><img class="shot" src="img/apartment_inliers.jpg" alt="Etcheverry Hall North left-to-middle RANSAC inliers"><figcaption><b>Etcheverry Hall North inliers: left &rarr; middle.</b></figcaption></figure>
+        <figure><img class="shot" src="img/apartment_inliers_right.jpg" alt="Etcheverry Hall North right-to-middle RANSAC inliers"><figcaption><b>Etcheverry Hall North inliers: right &rarr; middle.</b></figcaption></figure>
+      </div>
+      <div class="pair matches">
+        <figure><img class="shot" src="img/hallway_inliers.jpg" alt="Hallway left-to-middle RANSAC inliers"><figcaption><b>Hallway inliers: left &rarr; middle.</b></figcaption></figure>
+        <figure><img class="shot" src="img/hallway_inliers_right.jpg" alt="Hallway right-to-middle RANSAC inliers"><figcaption><b>Hallway inliers: right &rarr; middle.</b></figcaption></figure>
+      </div>
+      <div class="pair matches">
+        <figure><img class="shot" src="img/garden_inliers.jpg" alt="Etcheverry Hall South left-to-middle RANSAC inliers"><figcaption><b>Etcheverry Hall South inliers: left &rarr; middle.</b></figcaption></figure>
+        <figure><img class="shot" src="img/garden_inliers_right.jpg" alt="Etcheverry Hall South right-to-middle RANSAC inliers"><figcaption><b>Etcheverry Hall South inliers: right &rarr; middle.</b></figcaption></figure>
+      </div>
+
+      <div class="prose" style="margin-top:40px">
+        <h3>Manual vs. automatic</h3>
+        <p>
+          The left column uses my clicked points from Part A, and the right column uses the
+          automatic pipeline. For the Etcheverry Hall North and Hallway sets, the two results look
+          almost the same, and the recovered matrices are close to my manual ones. The automatic
+          version even finds more correspondences than I clicked. Etcheverry Hall South was the
+          hardest set: the bushes and leaves look alike everywhere, so only 12 and 15 matches
+          survived RANSAC, and most of them sit on the roof and power lines. The overlap still
+          lines up well, but the far-left image is stretched more than in my manual mosaic,
+          because my clicked points covered more of the overlap.
+        </p>
+      </div>
+
+      <div class="pair matches">
+        <figure><img class="shot" src="img/apartment_mosaic.jpg" alt="Manual Etcheverry Hall North mosaic"><figcaption><b>Etcheverry Hall North: manual.</b></figcaption></figure>
+        <figure><img class="shot" src="img/apartment_auto.jpg" alt="Automatic Etcheverry Hall North mosaic"><figcaption><b>Etcheverry Hall North: automatic.</b></figcaption></figure>
+      </div>
+      <div class="pair matches">
+        <figure><img class="shot" src="img/hallway_mosaic.jpg" alt="Manual hallway mosaic"><figcaption><b>Hallway: manual.</b></figcaption></figure>
+        <figure><img class="shot" src="img/hallway_auto.jpg" alt="Automatic hallway mosaic"><figcaption><b>Hallway: automatic.</b></figcaption></figure>
+      </div>
+      <div class="pair matches">
+        <figure><img class="shot" src="img/garden_mosaic.jpg" alt="Manual Etcheverry Hall South mosaic"><figcaption><b>Etcheverry Hall South: manual.</b></figcaption></figure>
+        <figure><img class="shot" src="img/garden_auto.jpg" alt="Automatic Etcheverry Hall South mosaic"><figcaption><b>Etcheverry Hall South: automatic.</b></figcaption></figure>
       </div>
     </section>
 
