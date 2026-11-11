@@ -449,8 +449,9 @@ def warpImageBilinear(im, H):
           problem for ANMS below: a weak sky point has no stronger neighbor nearby, so it gets a
           large radius and is kept, even though it cannot be matched reliably. In my first try,
           hundreds of the chosen corners ended up in the sky. I kept only corners with a response
-          above 0.001 of the strongest one, which removed all but one sky point and left 7,661
-          corners on the buildings and trees.
+          above 0.001 of the strongest one. This removed almost all of the sky points, leaving only
+          a few along the thin cloud streak, and kept 7,661 corners, mostly on the buildings and
+          trees.
         </p>
         <p>
           That is still far too many, and the strongest corners bunch up in busy areas like the
@@ -465,8 +466,9 @@ def warpImageBilinear(im, H):
         </p>
         <p>
           A corner gets a large radius only if it is the strongest point in a big neighborhood. I
-          then keep the 1000 corners with the largest radii. The paper uses 500, but I got about
-          twice as many correct matches with 1000. To keep the memory reasonable, I compute the
+          then keep the 1000 corners with the largest radii. The paper uses 500, but with 1000 I got
+          1.4 to 2.2 times as many RANSAC inliers on every image pair (for example, 50 &rarr; 112 on
+          the Etcheverry Hall North right pair). To keep the memory reasonable, I compute the
           pairwise distances in chunks of 1000 rows using <code>dist2</code>.
         </p>
 <pre><code>def anms(pts, r, n=1000, c=0.9):
@@ -667,9 +669,9 @@ def ransac(p1, p2, n=2000, eps=3):
         <p>
           The left column uses my clicked points from Part A, and the right column uses the
           automatic pipeline. For the Etcheverry Hall North and Hallway sets, the two results look
-          almost the same. Their automatic homographies are within about one pixel of my clicks,
-          which is as close as my own clicking was, and they use many more correspondences than
-          the 12 I clicked.
+          almost the same. Their automatic homographies are within 1.3 pixels of my clicks, which is
+          close to how precise my own clicking was, and they use many more correspondences than
+          the 11 or 12 I clicked.
         </p>
         <p>
           Etcheverry Hall South was the hardest set. The bushes and leaves look alike everywhere, so
@@ -681,6 +683,17 @@ def ransac(p1, p2, n=2000, eps=3):
           the far-left image is still stretched more than in my manual mosaic. There are no
           matches in the lower half of the overlap, so the homography has to extrapolate there,
           while my clicks covered that area too.
+        </p>
+        <p>
+          I tried to fix this by spreading the features out. Lowering the Harris cutoff did not
+          change anything. Keeping 3000 ANMS corners did put many inliers on the bushes in the
+          lower half, but the error got much worse (15.6 pixels). I think this is parallax: the
+          bushes are very close to the camera, and the phone did not rotate exactly around its
+          lens, so close and far objects shift by different amounts between shots. No
+          single homography can line up both, and RANSAC picked the bushes over the background. I
+          also tried ratio thresholds of 0.75 and 0.8. They gave somewhat better results on this
+          set in some runs, but the error changed a lot with the RANSAC random seed, so I kept 0.7.
+          Reshooting with the camera rotating around its center would be the real fix.
         </p>
       </div>
 
